@@ -169,11 +169,11 @@ export function LeadCard({ report }: { report: AuditReport }) {
         <p className="mt-6 font-read text-sm text-kaki">Am primit mesajul. Vă contactăm noi.</p>
       ) : (
         <form onSubmit={onSubmit} className="mt-6 grid gap-3">
-          <input name="name" required placeholder="Nume" className="h-[46px] rounded-[2px] border border-black/20 px-3 font-read" />
-          <input name="dealer" defaultValue={report.dealerGuess} placeholder="Agent / punct de lucru" className="h-[46px] rounded-[2px] border border-black/20 px-3 font-read" />
-          <input name="phone" placeholder="Telefon" className="h-[46px] rounded-[2px] border border-black/20 px-3 font-read" />
-          <input name="email" type="email" placeholder="Email" className="h-[46px] rounded-[2px] border border-black/20 px-3 font-read" />
-          <textarea name="message" rows={3} placeholder="Mesaj (opțional)" className="rounded-[2px] border border-black/20 px-3 py-2 font-read" />
+          <input name="name" required placeholder="Nume" className="h-[46px] rounded-none border border-black/20 px-3 font-read" />
+          <input name="dealer" defaultValue={report.dealerGuess} placeholder="Agent / punct de lucru" className="h-[46px] rounded-none border border-black/20 px-3 font-read" />
+          <input name="phone" placeholder="Telefon" className="h-[46px] rounded-none border border-black/20 px-3 font-read" />
+          <input name="email" type="email" placeholder="Email" className="h-[46px] rounded-none border border-black/20 px-3 font-read" />
+          <textarea name="message" rows={3} placeholder="Mesaj (opțional)" className="rounded-none border border-black/20 px-3 py-2 font-read" />
           <button className="h-[46px] bg-kaki font-block text-sm font-bold uppercase text-white hover:bg-black">
             Trimite-mi oferta
           </button>
@@ -185,6 +185,7 @@ export function LeadCard({ report }: { report: AuditReport }) {
 }
 
 export function ReportView({ report }: { report: AuditReport }) {
+  const [copied, setCopied] = useState<"checklist" | "link" | "">("");
   const tnp = report.criteria.filter((c) => c.group === "tnp");
   const quality = report.criteria.filter((c) => c.group === "quality");
   const desktop = shot(report, "desktop");
@@ -199,6 +200,12 @@ export function ReportView({ report }: { report: AuditReport }) {
     navigator.clipboard.writeText(
       `Checklist standarde digitale Dacia — ${report.analyzedUrl}\nScor website: ${report.tnpLabel}\n\n${checklist}\n\nAnaliză independentă. Nu este audit oficial.`,
     );
+    setCopied("checklist");
+  }
+
+  function copyLink() {
+    navigator.clipboard.writeText(window.location.href);
+    setCopied("link");
   }
 
   return (
@@ -258,7 +265,14 @@ export function ReportView({ report }: { report: AuditReport }) {
               onClick={copyChecklist}
               className="h-[46px] border border-ink px-5 font-block text-sm font-bold uppercase text-ink hover:bg-black hover:text-white"
             >
-              Copiază checklist-ul
+              {copied === "checklist" ? "Checklist copiat" : "Copiază checklist-ul"}
+            </button>
+            <button
+              type="button"
+              onClick={copyLink}
+              className="h-[46px] border border-ink px-5 font-block text-sm font-bold uppercase text-ink hover:bg-black hover:text-white"
+            >
+              {copied === "link" ? "Link copiat" : "Copiază linkul raportului"}
             </button>
           </div>
         </div>

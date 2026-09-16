@@ -1,5 +1,6 @@
 {
   "fluid": false,
+  "buildCommand": "next build && node scripts/patch-nft.mjs",
   "functions": {
     "app/api/audit/route.ts": {
       "maxDuration": 60,

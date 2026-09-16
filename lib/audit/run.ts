@@ -39,8 +39,46 @@ async function jpegShot(
   };
 }
 
+const CITY_SLUGS: Record<string, string> = {
+  targoviste: "Târgoviște",
+  dragasani: "Drăgășani",
+  pitesti: "Pitești",
+  bucuresti: "București",
+  cluj: "Cluj-Napoca",
+  timisoara: "Timișoara",
+  iasi: "Iași",
+  constanta: "Constanța",
+  craiova: "Craiova",
+  brasov: "Brașov",
+  oradea: "Oradea",
+  arad: "Arad",
+  sibiu: "Sibiu",
+  calarasi: "Călărași",
+  alexandria: "Alexandria",
+  drobeta: "Drobeta-Turnu Severin",
+  "targu-jiu": "Târgu Jiu",
+  "alba-iulia": "Alba Iulia",
+  orastie: "Orăștie",
+};
+
+function cityFromUrl(url: string): string {
+  try {
+    const path = new URL(url).pathname.toLowerCase();
+    const m = path.match(/dacia-([a-z0-9-]+)/);
+    if (!m) return "";
+    const slug = m[1];
+    return (
+      CITY_SLUGS[slug] ||
+      Object.entries(CITY_SLUGS).find(([k]) => slug.includes(k))?.[1] ||
+      slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    );
+  } catch {
+    return "";
+  }
+}
+
 function guessDealer(snap: Snapshot, title: string): { dealer: string; city: string } {
-  const city = snap.header.cityLike || "";
+  const city = snap.header.cityLike || cityFromUrl(snap.url);
   let host = "";
   try {
     host = new URL(snap.url).hostname.replace(/^www\./, "").split(".")[0] || "";
