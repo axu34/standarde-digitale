@@ -4,7 +4,7 @@ import { useState } from "react";
 import { BRAND } from "@/lib/brand";
 import type { AuditReport, CriterionResult, Verdict } from "@/lib/audit/types";
 import { formatRoDate } from "@/lib/utils";
-import { IconCheck, IconCancel, IconList, IconPhone } from "./Icons";
+import { IconPhone } from "./Icons";
 
 function verdictStyle(v: Verdict) {
   if (v === "OK") return "bg-kaki text-white";
@@ -19,9 +19,11 @@ function shot(report: AuditReport, id?: string) {
 function CriterionBlock({
   item,
   report,
+  open,
 }: {
   item: CriterionResult;
   report: AuditReport;
+  open: boolean;
 }) {
   const shots = item.evidence
     .filter((e) => e.screenshotId)
@@ -29,75 +31,73 @@ function CriterionBlock({
     .filter(Boolean);
 
   return (
-    <article className="border border-black/10 bg-white print:break-inside-avoid">
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-black/10 px-5 py-4">
+    <details
+      open={open}
+      className="border-t border-black/10 py-8"
+      id={`c-${item.id}`}
+    >
+      <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="font-read text-xs uppercase tracking-wide text-muted">
-            {item.group === "tnp" ? `Criteriul ${item.number}` : "Calitate 2026"} ·{" "}
-            {item.officialName}
-          </p>
-          <h3 className="mt-1 font-block text-lg font-bold uppercase text-ink">
+          <p className="font-block text-xs uppercase tracking-[0.18em] text-muted">
+            {item.group === "tnp" ? item.number.toString().padStart(2, "0") : "2026"} ·{" "}
             {item.title}
-          </h3>
+          </p>
+          <p className="mt-2 max-w-2xl font-read text-lg leading-relaxed text-ink">
+            {item.summary}
+          </p>
         </div>
-        <div className="text-right">
-          <span className={`inline-block px-3 py-1 font-block text-sm font-bold ${verdictStyle(item.verdict)}`}>
-            {item.verdict}
-          </span>
-          <p className="mt-1 font-block text-xl text-ink">{item.score}%</p>
-        </div>
-      </div>
-      <div className="grid gap-6 px-5 py-5 lg:grid-cols-2">
+        <span className={`px-3 py-1 font-block text-sm font-bold ${verdictStyle(item.verdict)}`}>
+          {item.verdict}
+        </span>
+      </summary>
+      <div className="mt-8 grid gap-10 lg:grid-cols-2">
         <div>
-          <p className="font-read text-base leading-relaxed text-ink">{item.summary}</p>
-          <ul className="mt-4 space-y-2 font-read text-sm leading-relaxed text-ink">
+          <ul className="space-y-3 font-read text-base leading-relaxed text-ink">
             {item.details.map((d) => (
-              <li key={d} className="flex gap-2">
-                <span className="mt-1.5 size-1.5 shrink-0 bg-kaki" />
-                <span>{d}</span>
-              </li>
+              <li key={d}>{d}</li>
             ))}
           </ul>
-          <p className="mt-4 border-l-2 border-kaki pl-3 font-read text-sm text-ink">
-            <span className="font-bold">De făcut: </span>
-            {item.recommendation}
-          </p>
-          <div className="mt-4 space-y-2">
+          {item.verdict !== "OK" ? (
+            <p className="mt-6 border-l-2 border-kaki pl-4 font-read text-base text-ink">
+              {item.recommendation}
+            </p>
+          ) : null}
+          <div className="mt-6 space-y-2">
             {item.evidence
               .filter((e) => e.kind !== "screenshot")
               .map((e, i) => (
-                <div key={`${e.label}-${i}`} className="font-read text-sm">
-                  <span className="text-muted">{e.label}: </span>
+                <div key={`${e.label}-${i}`} className="font-read text-sm text-muted">
+                  {e.label}:{" "}
                   {e.hex ? (
-                    <span className="inline-flex items-center gap-2">
+                    <span className="inline-flex items-center gap-2 text-ink">
                       <span
-                        className="inline-block size-4 border border-black/20"
+                        className="inline-block size-3 border border-black/20"
                         style={{ background: e.hex }}
                       />
-                      <code>{e.hex || e.value}</code>
+                      <span>{e.hex || e.value}</span>
                     </span>
                   ) : (
-                    <span>{e.value || e.quote}</span>
+                    <span className="text-ink">{e.value || e.quote}</span>
                   )}
                 </div>
               ))}
           </div>
         </div>
-        <div className="space-y-3">
+        <div className="space-y-4">
           {shots.map((s) =>
             s ? (
               <figure key={s.id} className="border border-black/10">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={s.dataUrl} alt={s.label} className="w-full" />
-                <figcaption className="bg-white px-3 py-2 font-read text-xs text-muted">
-                  {s.label} — dovadă la {item.title}
+                <figcaption className="px-3 py-2 font-read text-xs text-muted">
+                  {s.label}
                 </figcaption>
               </figure>
             ) : null,
           )}
         </div>
       </div>
-    </article>
+    </details>
   );
 }
 
@@ -120,6 +120,7 @@ export function LeadCard({ report }: { report: AuditReport }) {
         reportId: report.id,
         score: report.tnpLabel,
         url: report.analyzedUrl,
+        city: report.cityGuess,
       }),
     });
     if (!res.ok) {
@@ -132,49 +133,77 @@ export function LeadCard({ report }: { report: AuditReport }) {
   }
 
   const wa = `https://wa.me/${BRAND.whatsapp}?text=${encodeURIComponent(
-    `Bună, am verificat ${report.analyzedUrl} — conformitate website ${report.tnpLabel}. Doresc o discuție.`,
+    `Bună, am verificat ${report.analyzedUrl} — ${report.tnpLabel}. Doresc o discuție.`,
   )}`;
 
   return (
-    <aside className="border border-black/10 bg-white p-6 print:hidden">
-      <p className="font-block text-sm uppercase tracking-wide text-kaki">
-        Următorul pas
+    <aside className="print:hidden">
+      <p className="font-block text-xs uppercase tracking-[0.28em] text-kaki">
+        {BRAND.agency}
       </p>
-      <h2 className="mt-2 font-block text-2xl font-bold uppercase text-ink">
+      <h2 className="mt-4 font-block text-3xl font-bold uppercase leading-tight text-ink">
         {report.pitch.headline}
       </h2>
-      <p className="mt-3 font-read text-base leading-relaxed text-ink">{report.pitch.body}</p>
-      <p className="mt-2 font-read text-sm text-muted">{report.pitch.urgency}</p>
-      <p className="mt-4 font-read text-sm text-ink">
-        Site Dacia gata în {BRAND.delivery}. {BRAND.price}, tot inclus: standarde, conținut,
-        SEO, găzduire, prețuri după catalogul public, prezență la meeting-urile digitale.
-      </p>
-      <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+      <p className="mt-5 font-read text-lg leading-relaxed text-ink">{report.pitch.body}</p>
+      <ol className="mt-8 space-y-3 font-read text-sm leading-relaxed text-ink">
+        {BRAND.offer.map((line) => (
+          <li key={line} className="border-t border-black/10 pt-3 first:border-0 first:pt-0">
+            {line}
+          </li>
+        ))}
+      </ol>
+      <div className="mt-8 flex flex-col gap-3 sm:flex-row">
         <a
           href={wa}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex h-[46px] items-center justify-center gap-2 bg-kaki px-5 font-block text-sm font-bold uppercase text-white hover:bg-black"
+          className="inline-flex h-[52px] items-center justify-center gap-2 bg-kaki px-6 font-block text-sm font-bold uppercase text-white hover:bg-black"
         >
           <IconPhone size={20} /> WhatsApp
         </a>
         <a
           href={`tel:${BRAND.phoneTel}`}
-          className="inline-flex h-[46px] items-center justify-center border border-ink px-5 font-block text-sm font-bold uppercase text-ink hover:bg-black hover:text-white"
+          className="inline-flex h-[52px] items-center justify-center border border-ink px-6 font-block text-sm font-bold uppercase text-ink hover:bg-black hover:text-white"
         >
           {BRAND.phoneDisplay}
         </a>
       </div>
       {state === "ok" ? (
-        <p className="mt-6 font-read text-sm text-kaki">Am primit mesajul. Vă contactăm noi.</p>
+        <p className="mt-8 font-read text-base text-kaki">
+          Am primit. Vă contactăm noi. Dacă ați lăsat email, v-am trimis și linkul raportului.
+        </p>
       ) : (
-        <form onSubmit={onSubmit} className="mt-6 grid gap-3">
-          <input name="name" required placeholder="Nume" className="h-[46px] rounded-none border border-black/20 px-3 font-read" />
-          <input name="dealer" defaultValue={report.dealerGuess} placeholder="Agent / punct de lucru" className="h-[46px] rounded-none border border-black/20 px-3 font-read" />
-          <input name="phone" placeholder="Telefon" className="h-[46px] rounded-none border border-black/20 px-3 font-read" />
-          <input name="email" type="email" placeholder="Email" className="h-[46px] rounded-none border border-black/20 px-3 font-read" />
-          <textarea name="message" rows={3} placeholder="Mesaj (opțional)" className="rounded-none border border-black/20 px-3 py-2 font-read" />
-          <button className="h-[46px] bg-kaki font-block text-sm font-bold uppercase text-white hover:bg-black">
+        <form onSubmit={onSubmit} className="mt-10 grid gap-3">
+          <input
+            name="name"
+            required
+            placeholder="Nume"
+            className="h-[52px] rounded-none border border-black/20 px-4 font-read"
+          />
+          <input
+            name="dealer"
+            defaultValue={report.dealerGuess}
+            placeholder="Agent / punct de lucru"
+            className="h-[52px] rounded-none border border-black/20 px-4 font-read"
+          />
+          <input
+            name="phone"
+            placeholder="Telefon"
+            className="h-[52px] rounded-none border border-black/20 px-4 font-read"
+          />
+          <input
+            name="email"
+            type="email"
+            placeholder="Email — vă trimitem raportul"
+            className="h-[52px] rounded-none border border-black/20 px-4 font-read"
+          />
+          <textarea
+            name="message"
+            rows={3}
+            placeholder="Mesaj (opțional)"
+            className="rounded-none border border-black/20 px-4 py-3 font-read"
+          />
+          <button className="h-[52px] bg-kaki font-block text-sm font-bold uppercase text-white hover:bg-black">
             Trimite-mi oferta
           </button>
           {state === "err" ? <p className="font-read text-sm text-terracotta">{err}</p> : null}
@@ -190,15 +219,17 @@ export function ReportView({ report }: { report: AuditReport }) {
   const quality = report.criteria.filter((c) => c.group === "quality");
   const desktop = shot(report, "desktop");
   const mobile = shot(report, "mobile");
+  const failing = report.brief?.failing ?? report.criteria.filter((c) => c.verdict !== "OK").map((c) => ({
+    title: c.title,
+    line: c.summary,
+    verdict: c.verdict,
+  }));
+  const passing = report.brief?.passing ?? report.criteria.filter((c) => c.verdict === "OK").map((c) => c.title);
   const checklist = report.checklist.join("\n");
-
-  function printReport() {
-    window.print();
-  }
 
   function copyChecklist() {
     navigator.clipboard.writeText(
-      `Checklist standarde digitale Dacia — ${report.analyzedUrl}\nScor website: ${report.tnpLabel}\n\n${checklist}\n\nAnaliză independentă. Nu este audit oficial.`,
+      `Checklist site Dacia — ${report.analyzedUrl}\nScor: ${report.tnpLabel}\n\n${checklist}\n\nAnaliză independentă. Nu este audit oficial.`,
     );
     setCopied("checklist");
   }
@@ -211,205 +242,166 @@ export function ReportView({ report }: { report: AuditReport }) {
   return (
     <div className="bg-white">
       <section className="border-b border-black/10">
-        <div className="mx-auto max-w-[1216px] px-4 py-10 lg:px-8">
-          <p className="font-block text-xs uppercase tracking-[0.2em] text-muted">
-            Dacia — detailed report · Audit report 2026
+        <div className="mx-auto max-w-[1080px] px-4 py-16 lg:px-8 lg:py-20">
+          <p className="font-block text-xs uppercase tracking-[0.28em] text-muted">
+            Raport website · 2026
           </p>
-          <div className="mt-4 grid gap-8 lg:grid-cols-12">
-            <div className="lg:col-span-8">
-              <h1 className="font-block text-3xl font-bold uppercase leading-tight text-ink lg:text-5xl">
-                Website conformity
+          <div className="mt-6 flex flex-col gap-10 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h1 className="font-block text-4xl font-bold uppercase leading-[0.95] text-ink lg:text-6xl">
+                {report.dealerGuess}
               </h1>
-              <dl className="mt-6 grid gap-4 sm:grid-cols-3">
-                <div>
-                  <dt className="font-read text-xs uppercase text-muted">Dealer</dt>
-                  <dd className="font-block text-lg uppercase text-ink">{report.dealerGuess}</dd>
-                </div>
-                <div>
-                  <dt className="font-read text-xs uppercase text-muted">Locație</dt>
-                  <dd className="font-block text-lg uppercase text-ink">{report.cityGuess}</dd>
-                </div>
-                <div>
-                  <dt className="font-read text-xs uppercase text-muted">Data</dt>
-                  <dd className="font-block text-lg uppercase text-ink">
-                    {formatRoDate(report.createdAt)}
-                  </dd>
-                </div>
-              </dl>
+              <p className="mt-4 font-block text-lg uppercase tracking-wide text-ink">
+                {report.cityGuess}
+                <span className="mx-3 text-muted">·</span>
+                {formatRoDate(report.createdAt)}
+              </p>
               <p className="mt-4 font-read text-sm text-muted">
-                Analizat:{" "}
                 <a className="text-ink underline" href={report.analyzedUrl} target="_blank" rel="noreferrer">
                   {report.analyzedUrl}
                 </a>
               </p>
             </div>
-            <div className="flex flex-col items-start justify-end lg:col-span-4 lg:items-end">
-              <p className="font-read text-xs uppercase text-muted">Total score</p>
-              <p className="font-block text-6xl font-bold text-kaki">{report.tnpLabel}</p>
-              <p className="mt-2 font-read text-sm text-muted">
-                {report.counts.ok} OK · {report.counts.partial} parțial · {report.counts.ko} KO
-                {" "}din 9 criterii website
+            <div>
+              <p className="font-read text-xs uppercase tracking-[0.2em] text-muted">Website</p>
+              <p className="font-block text-7xl font-bold leading-none text-kaki">{report.tnpLabel}</p>
+              <p className="mt-3 font-read text-sm text-muted">
+                {report.counts.ok} ok · {report.counts.partial} parțial · {report.counts.ko} ko
               </p>
             </div>
           </div>
-          <div className="mt-8 flex flex-wrap gap-3 print:hidden">
+          <div className="mt-10 flex flex-wrap gap-3 print:hidden">
             <button
               type="button"
-              onClick={printReport}
-              className="h-[46px] bg-kaki px-5 font-block text-sm font-bold uppercase text-white hover:bg-black"
+              onClick={() => window.print()}
+              className="h-[52px] bg-kaki px-6 font-block text-sm font-bold uppercase text-white hover:bg-black"
             >
               Salvează PDF
             </button>
             <button
               type="button"
               onClick={copyChecklist}
-              className="h-[46px] border border-ink px-5 font-block text-sm font-bold uppercase text-ink hover:bg-black hover:text-white"
+              className="h-[52px] border border-ink px-6 font-block text-sm font-bold uppercase text-ink hover:bg-black hover:text-white"
             >
-              {copied === "checklist" ? "Checklist copiat" : "Copiază checklist-ul"}
+              {copied === "checklist" ? "Copiat" : "Checklist"}
             </button>
             <button
               type="button"
               onClick={copyLink}
-              className="h-[46px] border border-ink px-5 font-block text-sm font-bold uppercase text-ink hover:bg-black hover:text-white"
+              className="h-[52px] border border-ink px-6 font-block text-sm font-bold uppercase text-ink hover:bg-black hover:text-white"
             >
-              {copied === "link" ? "Link copiat" : "Copiază linkul raportului"}
+              {copied === "link" ? "Copiat" : "Copiază linkul"}
             </button>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1216px] px-4 py-10 lg:px-8">
-        <h2 className="font-block text-2xl font-bold uppercase text-ink">
-          Grila website (9 criterii)
-        </h2>
-        <p className="mt-2 max-w-3xl font-read text-sm text-muted">
-          Aceleași capitole ca în raportul de conformitate website: URL și favicon, layout, logo
-          agent, culori, tipografie, UI, gamă, preț de pornire, oferte și servicii.
-        </p>
-        <div className="mt-6 grid gap-px bg-black/10 sm:grid-cols-3">
-          {tnp.map((c) => (
-            <a
-              key={c.id}
-              href={`#c-${c.id}`}
-              className="flex items-center justify-between bg-white px-4 py-4 hover:bg-white"
-            >
-              <span className="pr-3 font-read text-sm text-ink">{c.title}</span>
-              <span className={`shrink-0 px-2 py-1 font-block text-xs font-bold ${verdictStyle(c.verdict)}`}>
-                {c.score}%
-              </span>
-            </a>
-          ))}
+      <section className="mx-auto max-w-[1080px] px-4 py-16 lg:px-8">
+        <div className="grid gap-16 lg:grid-cols-12">
+          <div className="lg:col-span-7">
+            <h2 className="font-block text-2xl font-bold uppercase text-ink">Ce cade</h2>
+            {failing.length ? (
+              <ul className="mt-8 space-y-6">
+                {failing.map((f) => (
+                  <li key={f.title} className="border-t border-black/10 pt-6">
+                    <span
+                      className={`mr-3 inline-block px-2 py-0.5 font-block text-xs font-bold ${verdictStyle(f.verdict)}`}
+                    >
+                      {f.verdict}
+                    </span>
+                    <span className="font-block uppercase text-ink">{f.title}</span>
+                    <p className="mt-3 font-read text-base leading-relaxed text-ink">{f.line}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-6 font-read text-lg text-ink">Nimic de corectat pe criteriile verificate.</p>
+            )}
+          </div>
+          <div className="lg:col-span-5">
+            <h2 className="font-block text-2xl font-bold uppercase text-ink">Ce trece</h2>
+            <p className="mt-8 font-read text-base leading-relaxed text-ink">
+              {passing.length ? passing.join(" · ") : "—"}
+            </p>
+            <p className="mt-10 font-block text-xs uppercase tracking-[0.2em] text-muted">
+              Calitate 2026 · {report.qualityLabel}
+            </p>
+            <p className="mt-3 font-read text-sm text-muted">
+              Mobil, HTTPS, contact, SEO, GDPR — în afara grilei de audit.
+            </p>
+          </div>
         </div>
       </section>
 
       {(desktop || mobile) && (
-        <section className="mx-auto max-w-[1216px] px-4 pb-10 lg:px-8">
-          <h2 className="font-block text-2xl font-bold uppercase text-ink">Dovezi vizuale</h2>
-          <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <section className="mx-auto max-w-[1080px] px-4 pb-8 lg:px-8">
+          <h2 className="font-block text-2xl font-bold uppercase text-ink">Dovezi</h2>
+          <div className="mt-10 grid gap-8 lg:grid-cols-2">
             {desktop ? (
-              <figure className="border border-black/10">
+              <figure>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={desktop.dataUrl} alt="Captură desktop" className="w-full" />
-                <figcaption className="px-3 py-2 font-read text-xs text-muted">
-                  Desktop 1440px — {report.analyzedUrl}
-                </figcaption>
+                <img src={desktop.dataUrl} alt="Desktop" className="w-full border border-black/10" />
+                <figcaption className="mt-3 font-read text-xs text-muted">Desktop</figcaption>
               </figure>
             ) : null}
             {mobile ? (
-              <figure className="border border-black/10 lg:max-w-sm">
+              <figure className="lg:max-w-sm">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={mobile.dataUrl} alt="Captură mobil" className="w-full" />
-                <figcaption className="px-3 py-2 font-read text-xs text-muted">
-                  Mobil 390px
-                </figcaption>
+                <img src={mobile.dataUrl} alt="Mobil" className="w-full border border-black/10" />
+                <figcaption className="mt-3 font-read text-xs text-muted">Mobil</figcaption>
               </figure>
             ) : null}
           </div>
         </section>
       )}
 
-      <section className="mx-auto max-w-[1216px] space-y-6 px-4 pb-12 lg:px-8">
-        <h2 className="font-block text-2xl font-bold uppercase text-ink">Answer report</h2>
-        {tnp.map((c) => (
-          <div key={c.id} id={`c-${c.id}`}>
-            <CriterionBlock item={c} report={report} />
-          </div>
-        ))}
-      </section>
-
-      <section className="border-t border-black/10 bg-white">
-        <div className="mx-auto max-w-[1216px] px-4 py-12 lg:px-8">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="font-block text-xs uppercase tracking-[0.2em] text-muted">
-                În afara grilei de audit
-              </p>
-              <h2 className="mt-2 font-block text-2xl font-bold uppercase text-ink">
-                Calitate dealer 2026
-              </h2>
-              <p className="mt-2 max-w-2xl font-read text-sm text-muted">
-                Mobil, viteză, SEO local, GDPR, EAA, click-to-call. Nu apar pe foaia TNP, dar
-                decid dacă un client rămâne pe site sau sună la alt agent.
-              </p>
-            </div>
-            <p className="font-block text-4xl text-kaki">{report.qualityLabel}</p>
-          </div>
-          <div className="mt-8 space-y-6">
-            {quality.map((c) => (
-              <CriterionBlock key={c.id} item={c} report={report} />
-            ))}
-          </div>
+      <section className="mx-auto max-w-[1080px] px-4 py-12 lg:px-8">
+        <h2 className="font-block text-2xl font-bold uppercase text-ink">Grila, criteriu cu criteriu</h2>
+        <div className="mt-4">
+          {tnp.map((c) => (
+            <CriterionBlock key={c.id} item={c} report={report} open={c.verdict !== "OK"} />
+          ))}
+        </div>
+        <h2 className="mt-16 font-block text-2xl font-bold uppercase text-ink">
+          Calitate dealer 2026
+        </h2>
+        <div className="mt-4">
+          {quality.map((c) => (
+            <CriterionBlock key={c.id} item={c} report={report} open={c.verdict !== "OK"} />
+          ))}
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-[1216px] gap-8 px-4 py-12 lg:grid-cols-5 lg:px-8">
-        <div className="lg:col-span-3">
-          <h2 className="flex items-center gap-2 font-block text-2xl font-bold uppercase text-ink">
-            <IconList /> Checklist pentru agenția actuală
-          </h2>
-          <p className="mt-3 font-read text-sm leading-relaxed text-ink">
-            Dacă lucrați deja cu cineva pe site, trimiteți-le lista de mai jos. Este limba
-            auditului, nu a unei oferte. Dacă nu o pot închide până în {BRAND.nextAudit}, putem
-            prelua noi.
-          </p>
-          <ol className="mt-6 space-y-3">
-            {report.checklist.length ? (
-              report.checklist.map((line, i) => (
-                <li key={line} className="flex gap-3 border border-black/10 p-4 font-read text-sm">
-                  <span className="font-block text-kaki">{String(i + 1).padStart(2, "0")}</span>
-                  <span>{line}</span>
-                </li>
-              ))
-            ) : (
-              <li className="flex gap-2 font-read text-sm text-ink">
-                <IconCheck className="text-kaki" /> Nimic de corectat pe criteriile verificate.
-              </li>
-            )}
-          </ol>
-          <div className="mt-8 border border-black/10 p-5">
-            <p className="font-block text-sm uppercase text-ink">Site-uri de referință</p>
-            <ul className="mt-3 space-y-2 font-read text-sm">
-              {BRAND.portfolio.map((p) => (
-                <li key={p.url}>
-                  <a className="text-kaki underline" href={p.url} target="_blank" rel="noreferrer">
-                    {p.name}
-                  </a>
-                </li>
-              ))}
-            </ul>
+      <section className="border-t border-black/10">
+        <div className="mx-auto grid max-w-[1080px] gap-16 px-4 py-20 lg:grid-cols-12 lg:px-8">
+          <div className="lg:col-span-5">
+            <h2 className="font-block text-2xl font-bold uppercase text-ink">
+              Pentru cine vă ține site-ul
+            </h2>
+            <p className="mt-4 font-read text-base leading-relaxed text-ink">
+              Copiați lista. Dacă nu se închide până în {BRAND.nextAudit}, vorbim noi.
+            </p>
+            <ol className="mt-8 space-y-4">
+              {report.checklist.length ? (
+                report.checklist.map((line, i) => (
+                  <li key={line} className="flex gap-4 font-read text-sm leading-relaxed">
+                    <span className="font-block text-kaki">{String(i + 1).padStart(2, "0")}</span>
+                    <span>{line.replace(/^\[(KO|PARTIAL)\]\s/, "")}</span>
+                  </li>
+                ))
+              ) : (
+                <li className="font-read text-sm">Nimic pe lista de remedieri.</li>
+              )}
+            </ol>
+            {report.engine.warnings.length ? (
+              <p className="mt-6 font-read text-xs text-muted">{report.engine.warnings.join(" ")}</p>
+            ) : null}
           </div>
-          {report.engine.warnings.length ? (
-            <p className="mt-4 font-read text-xs text-muted">{report.engine.warnings.join(" ")}</p>
-          ) : null}
-        </div>
-        <div className="lg:col-span-2">
-          <LeadCard report={report} />
+          <div className="lg:col-span-7">
+            <LeadCard report={report} />
+          </div>
         </div>
       </section>
     </div>
   );
-}
-
-export function VerdictIcon({ v }: { v: Verdict }) {
-  return v === "KO" ? <IconCancel /> : <IconCheck />;
 }

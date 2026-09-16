@@ -112,7 +112,7 @@ function urlFavicon(snap: Snapshot, favicon: FaviconAnalysis): CriterionResult {
       ],
       evidence,
       recommendation:
-        "Creați un parcurs Dacia dedicat, cu URL care conține Dacia și orașul.",
+        "Creați o pagină Dacia, cu Dacia și orașul în adresă.",
     });
   }
   return result({
@@ -463,7 +463,7 @@ function prices(snap: Snapshot): CriterionResult {
       ? `${withPrice.length}/${needed.length} modele cu preț de pornire vizibil (fără Striker / Noul Spring, care pot lipsi și pe dacia.ro).`
       : "Nu am găsit modele pe care să verific prețul.",
     snap.hasStrikethroughPrice
-      ? "Există preț tăiat (strikethrough) — interzis în România pe acest parcurs."
+      ? "Există preț tăiat (strikethrough) — interzis în România pe pagina Dacia."
       : "Nu am detectat preț tăiat.",
     ...needed.slice(0, 8).map((m) =>
       m.hasPrice
@@ -590,8 +590,8 @@ function mobile(snap: Snapshot): CriterionResult {
 
 function tapTargets(snap: Snapshot): CriterionResult {
   let verdict: Verdict = "OK";
-  if (snap.smallTapTargets > 25) verdict = "KO";
-  else if (snap.smallTapTargets > 12) verdict = "PARTIAL";
+  if (snap.smallTapTargets > 16) verdict = "KO";
+  else if (snap.smallTapTargets > 6) verdict = "PARTIAL";
   return result({
     id: "q-tap",
     number: 22,
@@ -599,9 +599,12 @@ function tapTargets(snap: Snapshot): CriterionResult {
     officialName: "Tap targets ≥ 48px",
     group: "quality",
     verdict,
-    summary: `${snap.smallTapTargets} linkuri/butoane sub 44px pe mobil.`,
+    summary:
+      snap.smallTapTargets === 0
+        ? "Butoanele de apel și de trimitere sunt suficient de mari pe mobil."
+        : `${snap.smallTapTargets} butoane de apel / trimitere sub 44px pe mobil.`,
     details: [
-      "Ghidul Dacia cere minim 48×48px. Un site de dealer 2026 pune Call / Programare în zona degetului mare.",
+      "Măsurăm telefonul și butoanele, nu linkurile din meniu. Ghidul cere minim 48×48px.",
     ],
     evidence: [
       {
@@ -610,7 +613,7 @@ function tapTargets(snap: Snapshot): CriterionResult {
         value: String(snap.smallTapTargets),
       },
     ],
-    recommendation: "Măriți butoanele de telefon, meniu și CTA pe mobil.",
+    recommendation: "Măriți butonul de telefon și CTA-urile pe ecranul de 390px.",
   });
 }
 
@@ -709,9 +712,9 @@ function contact(snap: Snapshot): CriterionResult {
 
 function seo(snap: Snapshot): CriterionResult {
   const titleOk = /dacia/i.test(snap.title);
-  const cityOk = Boolean(snap.header.cityLike) || /dacia/i.test(snap.title);
+  const cityOk = snap.cityInUrl || Boolean(snap.header.cityLike);
   const metaOk = snap.description.length > 40;
-  const schemaOk = snap.jsonLdTypes.length > 0;
+  const schemaOk = snap.schemaAutoDealer || snap.jsonLdTypes.some((t) => /autodealer|cardealer|localbusiness/i.test(t));
   const n = [titleOk, cityOk, metaOk, schemaOk].filter(Boolean).length;
   const verdict: Verdict = n >= 3 ? "OK" : n >= 2 ? "PARTIAL" : "KO";
   return result({
@@ -725,10 +728,13 @@ function seo(snap: Snapshot): CriterionResult {
       ? `Title: «${snap.title.slice(0, 90)}»`
       : "Title-ul nu conține Dacia — vizibilitate locală slabă.",
     details: [
+      cityOk ? "Orașul apare în URL sau în header." : "Orașul nu e în URL/header.",
       metaOk ? "Meta description prezentă." : "Fără meta description utilă.",
-      schemaOk
-        ? `JSON-LD: ${snap.jsonLdTypes.slice(0, 4).join(", ")}`
-        : "Fără AutoDealer / LocalBusiness JSON-LD.",
+      snap.schemaAutoDealer
+        ? "JSON-LD AutoDealer prezent."
+        : schemaOk
+          ? `JSON-LD: ${snap.jsonLdTypes.slice(0, 4).join(", ")}`
+          : "Fără AutoDealer / LocalBusiness JSON-LD.",
     ],
     evidence: [{ kind: "quote", label: "Title", quote: snap.title }],
     recommendation:
@@ -763,8 +769,8 @@ function a11y(snap: Snapshot): CriterionResult {
 function performance(snap: Snapshot): CriterionResult {
   const ms = snap.loadMs;
   let verdict: Verdict = "PARTIAL";
-  if (ms != null && ms <= 1800) verdict = "OK";
-  else if (ms != null && ms > 4000) verdict = "KO";
+  if (ms != null && ms <= 2500) verdict = "OK";
+  else if (ms != null && ms > 5500) verdict = "KO";
   return result({
     id: "q-perf",
     number: 28,
@@ -789,6 +795,7 @@ function performance(snap: Snapshot): CriterionResult {
 }
 
 function gdprForms(snap: Snapshot): CriterionResult {
+  const legalAround = snap.legal.privacy || snap.legal.cookies;
   if (snap.forms.length === 0) {
     return result({
       id: "q-forms",
@@ -797,15 +804,16 @@ function gdprForms(snap: Snapshot): CriterionResult {
       officialName: "Note scurte GDPR pe formulare",
       group: "quality",
       verdict: "PARTIAL",
-      summary: "Nu am găsit un formular pe pagina analizată.",
-      details: ["Lead-ul de test drive / ofertă trebuie să fie la un tap distanță."],
+      summary: "Nu am găsit un formular de lead pe pagina analizată.",
+      details: ["Oferta, test drive și service se cer de obicei dintr-un formular scurt."],
       evidence: [],
       recommendation: "Formular scurt (3–5 câmpuri) cu notă operator / scop / drepturi.",
     });
   }
   const withGdpr = snap.forms.filter((f) => f.hasGdpr).length;
-  const verdict: Verdict =
-    withGdpr === snap.forms.length ? "OK" : withGdpr > 0 ? "PARTIAL" : "KO";
+  let verdict: Verdict = "KO";
+  if (withGdpr === snap.forms.length) verdict = "OK";
+  else if (withGdpr > 0 || legalAround) verdict = "PARTIAL";
   return result({
     id: "q-forms",
     number: 29,
@@ -813,13 +821,18 @@ function gdprForms(snap: Snapshot): CriterionResult {
     officialName: "Note scurte GDPR pe formulare",
     group: "quality",
     verdict,
-    summary: `${withGdpr}/${snap.forms.length} formulare cu notă de prelucrare date.`,
-    details: snap.forms.map(
-      (f, i) => `Formular ${i + 1}: ${f.fields} câmpuri${f.hasGdpr ? ", notă GDPR" : ", fără notă"}.`,
-    ),
+    summary: `${withGdpr}/${snap.forms.length} formulare cu notă de prelucrare lângă câmpuri.`,
+    details: [
+      ...snap.forms.map(
+        (f, i) => `Formular ${i + 1}: ${f.fields} câmpuri${f.hasGdpr ? ", notă GDPR" : ", fără notă în formular"}.`,
+      ),
+      legalAround
+        ? "Există totuși link de confidențialitate / cookies pe pagină."
+        : "Nu am găsit politică de confidențialitate pe pagină.",
+    ],
     evidence: [],
     recommendation:
-      "Notă scurtă: operator, scop, drepturi, DPO. Consimțământ separat email/SMS.",
+      "Notă scurtă lângă formular: operator, scop, drepturi. Consimțământ separat email/SMS.",
   });
 }
 
@@ -870,28 +883,39 @@ export function buildChecklist(criteria: CriterionResult[]): string[] {
     .map((c) => `${c.verdict === "KO" ? "[KO]" : "[PARTIAL]"} ${c.title}: ${c.recommendation}`);
 }
 
+export function buildBrief(criteria: CriterionResult[]): {
+  failing: { title: string; line: string; verdict: Verdict }[];
+  passing: string[];
+} {
+  const failing = criteria
+    .filter((c) => c.verdict !== "OK")
+    .map((c) => ({ title: c.title, line: c.summary, verdict: c.verdict }));
+  const passing = criteria.filter((c) => c.verdict === "OK").map((c) => c.title);
+  return { failing, passing };
+}
+
 export function buildPitch(
   tnpScore: number,
   ko: number,
 ): { headline: string; body: string; urgency: string } {
   if (tnpScore >= 95 && ko === 0) {
     return {
-      headline: "Conformitate website foarte bună — menținerea contează",
-      body: `Scorul de pe grila website este ${tnpScore.toFixed(1).replace(".", ",")}%. Următorul val de audit este ${BRAND.nextAudit}. Un site ținut la zi (prețuri, oferte, standarde) evită o cădere între două valuri.`,
-      urgency: `Auditul următor: ${BRAND.nextAudit}.`,
+      headline: "Grila e în regulă. Menținerea e treaba grea.",
+      body: `Prețurile, ofertele și standardele se mișcă între două valuri de audit. Noi le ținem la zi. ${BRAND.price}, gata în ${BRAND.delivery}.`,
+      urgency: `Următorul audit: ${BRAND.nextAudit}.`,
     };
   }
   if (tnpScore >= 80) {
     return {
-      headline: "Aproape de 100% — punctele rămase se pierd la audit",
-      body: `Pe astfel de detalii (culori, butoane, orar, URL) s-a pierdut punctaj în H1. Le putem închide pe un șablon deja aliniat după auditul din vară, gata în ${BRAND.delivery}.`,
-      urgency: `Următorul audit de website este în ${BRAND.nextAudit}.`,
+      headline: "Aproape. Ce rămâne se pierde la audit.",
+      body: `Trimiteți lista cui vă ține site-ul. Dacă nu o închid până în ${BRAND.nextAudit}, preluăm noi. ${BRAND.price}.`,
+      urgency: `Următorul audit: ${BRAND.nextAudit}.`,
     };
   }
   return {
-    headline: "Grila de website nu trece în forma actuală",
-    body: `Un site Dacia pe standardele 2026, cu prețuri actualizate după catalogul public, costă ${BRAND.price}, tot inclus. Referințe: ${BRAND.portfolio.map((p) => p.name).join(" și ")}.`,
-    urgency: `Valul următor de audit: ${BRAND.nextAudit}.`,
+    headline: "În forma actuală, grila de website nu trece.",
+    body: `Facem site-urile Dacia pentru ${BRAND.portfolio.map((p) => p.name).join(" și ")}. ${BRAND.price}, gata în ${BRAND.delivery}.`,
+    urgency: `Următorul audit: ${BRAND.nextAudit}.`,
   };
 }
 

@@ -3,6 +3,8 @@ export const BRAND = {
   agency: "Vreau Site",
   agencyUrl: "https://www.vreau-site.ro",
   email: "hello@vreau-site.ro",
+  fromEmail: "hello@updates.vreau-site.ro",
+  fromName: "Vreau Site",
   phoneDisplay: "+40 754 558 977",
   phoneTel: "+40754558977",
   whatsapp: "40754558977",
@@ -19,6 +21,17 @@ export const BRAND = {
       url: "https://grigauto.ro/dacia-dragasani",
     },
   ],
+  offer: [
+    "Site Dacia pe standardele 2026, personalizat pe punctul de lucru",
+    "Formular de contact",
+    "Listare mașini și listare oferte",
+    "Actualizări continue la gamă, prețuri și oferte",
+    "Verificare lunară SEO + GEO (Google și motoare AI), cu îmbunătățiri aplicate",
+    "Un articol de blog pe săptămână, scris și verificat de noi — fără input de la dealer",
+    "Platformă de management: cereri de modificare și suport, dintr-un loc",
+    "Găzduire, backup-uri și mentenanță tehnică",
+    "Prezență la meeting-urile digitale Dacia și contact direct, fără interpretări",
+  ],
 } as const;
 
 export const DACIA_COLORS = {
@@ -33,4 +46,4 @@ export const DACIA_COLORS = {
 } as const;
 
 export const DISCLAIMER =
-  "Analiză independentă, pe Ghidul de standarde digitale Dacia 2026 și pe grila de conformitate website folosită în auditul de rețea. Nu este un audit oficial Dacia, Renault sau TNP și nu înlocuiește evaluarea producătorului.";
+  "Analiză independentă, pe Ghidul de standarde digitale Dacia 2026 și pe grila de website folosită în auditul de rețea. Nu este un audit oficial Dacia, Renault sau TNP și nu înlocuiește evaluarea producătorului.";

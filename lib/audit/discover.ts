@@ -41,7 +41,31 @@ export async function resolveDaciaUrl(
 
   const unique = [...new Set(hrefs)].filter((h) => scoreCandidate(h) > 0);
   unique.sort((a, b) => scoreCandidate(b) - scoreCandidate(a));
-  const best = unique[0];
+  let best = unique[0];
+
+  if (!best) {
+    try {
+      const origin = new URL(page.url() || startUrl).origin;
+      const probe = await page.goto(`${origin}/dacia`, {
+        waitUntil: "domcontentloaded",
+        timeout: 12000,
+      });
+      const title = await page.title().catch(() => "");
+      if (
+        probe &&
+        probe.ok() &&
+        urlLooksDacia(page.url()) &&
+        !/404|not found|pagina nu/i.test(title)
+      ) {
+        await page.waitForLoadState("networkidle", { timeout: 8000 }).catch(() => {});
+        return { analyzed: page.url(), homepage, switched: true };
+      }
+      await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
+    } catch {
+      /* stay on current */
+    }
+  }
+
   if (!best) {
     return { analyzed: page.url() || startUrl, homepage, switched: false };
   }

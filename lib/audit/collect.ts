@@ -33,7 +33,12 @@ const COLLECT_BODY = `
       if (t.length > 1 && t.length < 40 && navLabels.length < 30) navLabels.push(t);
     });
   }
-  var cityMatch = headerText.match(/\\b(Târgoviște|Targoviste|Drăgășani|Dragasani|București|Bucuresti|Cluj|Timișoara|Timisoara|Iași|Iasi|Constanța|Constanta|Craiova|Brașov|Brasov|Oradea|Arad|Pitești|Pitesti|Sibiu|Baia Mare|Călărași|Calarasi|Alexandria|Drobeta|Târgu Jiu|Targu Jiu|Odorheiu|Alba Iulia|Orăștie|Orastie)\\b/i);
+  var cityNames = ["Târgoviște","Targoviste","Drăgășani","Dragasani","București","Bucuresti","Cluj-Napoca","Cluj","Timișoara","Timisoara","Iași","Iasi","Constanța","Constanta","Craiova","Brașov","Brasov","Oradea","Arad","Pitești","Pitesti","Sibiu","Baia Mare","Călărași","Calarasi","Alexandria","Drobeta","Târgu Jiu","Targu Jiu","Alba Iulia","Orăștie","Orastie","Slatina","Râmnicu Vâlcea","Ramnicu Valcea","Ploiești","Ploiesti","Buzău","Buzau","Focșani","Focsani","Galați","Galati","Brăila","Braila","Suceava","Botoșani","Botosani","Piatra Neamț","Piatra Neamt","Bacău","Bacau","Deva","Hunedoara","Reșița","Resita","Satu Mare","Zalău","Zalau","Sfântu Gheorghe","Sfantu Gheorghe","Miercurea Ciuc","Târgu Mureș","Targu Mures"];
+  var cityHay = headerText + " " + (document.title || "");
+  var cityLike = null;
+  for (var ci = 0; ci < cityNames.length; ci++) {
+    if (cityHay.toLowerCase().indexOf(cityNames[ci].toLowerCase()) !== -1) { cityLike = cityNames[ci]; break; }
+  }
   var headerLinks = headerEl ? [].slice.call(headerEl.querySelectorAll("a[href]")) : [];
   var rightHalf = window.innerWidth * 0.55;
   var agentCandidates = headerLinks.map(function(a) {
@@ -50,7 +55,9 @@ const COLLECT_BODY = `
     if (scanned > 50) return;
     if (!visible(el)) return;
     var r = el.getBoundingClientRect();
-    if (r.height < 90 || r.width < 280) return;
+    if (r.height < 160 || r.width < 400) return;
+    var pos = css(el, "position");
+    if (pos === "fixed" || pos === "sticky") return;
     var bg = css(el, "background-color");
     if (!bg || bg === "rgba(0, 0, 0, 0)" || bg === "transparent") return;
     sectionBgs.push({ bg: bg, h: Math.round(r.height), w: Math.round(r.width) });
@@ -91,8 +98,8 @@ const COLLECT_BODY = `
     var match = m.re.exec(pageText);
     if (!match) return;
     var idx = match.index;
-    var around = pageText.slice(Math.max(0, idx - 40), idx + 180);
-    var price = around.match(/de la[^0-9]{0,12}(\\d{1,3}(?:[.\\s]\\d{3})+|\\d{4,6})\\s*(?:€|EUR|euro)?/i) || around.match(/(\\d{1,3}(?:[.\\s]\\d{3})+|\\d{4,6})\\s*(?:€|EUR|euro)/i);
+    var around = pageText.slice(Math.max(0, idx - 40), idx + 280);
+    var price = around.match(/de la[^0-9]{0,16}(\\d{1,3}(?:[.\\s]\\d{3})+|\\d{4,6})\\s*(?:€|EUR|euro)?/i) || around.match(/(\\d{1,3}(?:[.\\s]\\d{3})+|\\d{4,6})\\s*(?:€|EUR|euro)/i);
     models.push({
       key: m.key,
       label: m.label,
@@ -128,11 +135,14 @@ const COLLECT_BODY = `
     var t = textOf(el);
     if (serviceTitles.length < 12 && t.length > 4 && t.length < 80 && /service|vânz|vanz|itp|revizie|caros|finan|garan/i.test(t)) serviceTitles.push(t);
   });
-  var hasNewCarSales = /vânzări mașini noi|vanzari masini noi|vânzare vehicule noi|vanzare vehicule noi|vehicule noi/i.test(pageText);
+  var hasNewCarSales = /vânzări mașini noi|vanzari masini noi|vânzare vehicule noi|vanzare vehicule noi|vehicule noi|vânzări auto noi|vanzari auto noi|mașini noi|masini noi/i.test(pageText);
   var hoursMentions = [];
-  var hoursRe = /(?:orar|program)[^. ]{0,80}|luni[\\s–-]+(?:vineri|sâmbătă|sambata)[^.]{0,40}|\\b(?:l-v|l – v)[^.]{0,30}\\d{1,2}[:.]\\d{2}/gi;
+  var hoursRe = /(?:orar|program)[^.]{0,90}|(?:luni|marți|marti|miercuri|joi|vineri)[\\s–,—-]+(?:vineri|sâmbătă|sambata|duminică|duminica)?[^.]{0,50}\\d{1,2}[:.h]\\d{2}|\\d{1,2}[:.]\\d{2}\\s*[–-]\\s*\\d{1,2}[:.]\\d{2}/gi;
   var hm;
-  while ((hm = hoursRe.exec(pageText)) && hoursMentions.length < 8) hoursMentions.push(hm[0].slice(0, 120));
+  while ((hm = hoursRe.exec(pageText)) && hoursMentions.length < 8) {
+    var chunk = hm[0].slice(0, 120).trim();
+    if (chunk.length > 8) hoursMentions.push(chunk);
+  }
 
   var accordionHint = !!(document.querySelector("details, [aria-expanded], [class*='accordion']"));
   var cookieEl = null;
@@ -145,8 +155,8 @@ const COLLECT_BODY = `
 
   var hrefs = [].slice.call(document.querySelectorAll("a[href]")).map(function(a) { return a.href; });
   var legal = {
-    cookies: hrefs.some(function(h) { return /cookie/i.test(h); }),
-    privacy: hrefs.some(function(h) { return /confidentialitate|privacy|date-personale|politica-de-conf/i.test(h); }),
+    cookies: hrefs.some(function(h) { return /cookie/i.test(h); }) || /politica de cookie/i.test(pageText),
+    privacy: hrefs.some(function(h) { return /confidentialitate|privacy|date-personale|politica-de-conf/i.test(h); }) || /politica de confiden/i.test(pageText),
     terms: hrefs.some(function(h) { return /termeni|terms|conditii/i.test(h); }),
     anpc: hrefs.some(function(h) { return /anpc/i.test(h); })
   };
@@ -156,7 +166,8 @@ const COLLECT_BODY = `
   }
 
   var brandNames = ["Renault","Alpine","Nissan","Ford","Volkswagen","Škoda","Skoda","Seat","Peugeot","Opel","Toyota","Hyundai","Kia","Mercedes","BMW","Audi"];
-  var otherBrands = brandNames.filter(function(b) { return new RegExp("\\\\b" + b + "\\\\b", "i").test(pageText); });
+  var pageTextBrands = pageText.replace(/renault group/gi, "");
+  var otherBrands = brandNames.filter(function(b) { return new RegExp("\\\\b" + b + "\\\\b", "i").test(pageTextBrands); });
   var mixedBrandPhrases = [];
   var mixRe = /dacia\\s*(?:și|&|\\/)\\s*renault|renault\\s*(?:și|&|\\/)\\s*dacia|reprezentan(?:ță|ta)\\s+dacia\\s*(?:și|&)\\s*renault|dealer dacia și renault|service dacia și renault/gi;
   var mx;
@@ -167,14 +178,36 @@ const COLLECT_BODY = `
   var hasMaps = hrefs.some(function(h) { return /maps\\.google|google\\.[^/]+\\/maps|goo\\.gl\\/maps/i.test(h); });
 
   var jsonLdTypes = [];
-  document.querySelectorAll('script[type="application/ld+json"]').forEach(function(script) {
-    try {
-      var data = JSON.parse(script.textContent || "null");
-      var arr = Array.isArray(data) ? data : [data];
-      arr.forEach(function(item) {
-        if (item && item["@type"]) jsonLdTypes.push(Array.isArray(item["@type"]) ? item["@type"].join(",") : String(item["@type"]));
+  var jsonLdName = null;
+  var schemaAutoDealer = false;
+  function walkLd(node) {
+    if (!node || typeof node !== "object") return;
+    if (Array.isArray(node)) { node.forEach(walkLd); return; }
+    if (node["@graph"]) walkLd(node["@graph"]);
+    var t = node["@type"];
+    if (!t) return;
+    var types = Array.isArray(t) ? t.map(String) : [String(t)];
+    jsonLdTypes.push(types.join(","));
+    var joined = types.join(" ");
+    if (/AutoDealer|CarDealer/i.test(joined)) schemaAutoDealer = true;
+    if (!jsonLdName && node.name && /AutoDealer|CarDealer|AutoRepair|LocalBusiness|Organization/i.test(joined)) {
+      jsonLdName = String(node.name).slice(0, 80);
+    }
+    var hours = node.openingHours || node.openingHoursSpecification;
+    if (typeof hours === "string" && hoursMentions.length < 8) hoursMentions.push(hours.slice(0, 120));
+    if (Array.isArray(hours)) {
+      hours.slice(0, 4).forEach(function(h) {
+        if (typeof h === "string") hoursMentions.push(h.slice(0, 120));
+        else if (h && h.opens) hoursMentions.push((h.dayOfWeek || "") + " " + h.opens + "–" + (h.closes || ""));
       });
-    } catch (e) {}
+    }
+    if (node.telephone && telLinks.length === 0) {
+      var tel = String(node.telephone).replace(/\\s+/g, "");
+      if (tel) telLinks.push("tel:" + tel);
+    }
+  }
+  document.querySelectorAll('script[type="application/ld+json"]').forEach(function(script) {
+    try { walkLd(JSON.parse(script.textContent || "null")); } catch (e) {}
   });
 
   var headings = [];
@@ -184,20 +217,21 @@ const COLLECT_BODY = `
   var missingAlt = imgs.filter(function(img) { return !img.getAttribute("alt") && visible(img); }).length;
   var overflowX = document.documentElement.scrollWidth > window.innerWidth + 12;
   var smallTapTargets = 0;
-  document.querySelectorAll("button, a[href^='tel:'], [class*='btn'], [class*='cta']").forEach(function(el) {
+  document.querySelectorAll("a[href^='tel:'], button, input[type='submit']").forEach(function(el) {
     if (!visible(el)) return;
+    if (headerEl && headerEl.contains(el) && !(el.getAttribute && (el.getAttribute("href") || "").indexOf("tel:") === 0)) return;
     var r = el.getBoundingClientRect();
     if (r.width > 0 && r.height > 0 && (r.width < 44 || r.height < 44)) smallTapTargets += 1;
   });
   var forms = [];
   document.querySelectorAll("form").forEach(function(form) {
     if (forms.length >= 8) return;
-    var fields = form.querySelectorAll("input, textarea, select").length;
+    var fields = form.querySelectorAll("input:not([type='hidden']), textarea, select").length;
     if (fields < 3) return;
-    var t = textOf(form).toLowerCase();
+    var t = (textOf(form) + " " + textOf(form.parentElement)).toLowerCase();
     forms.push({
       fields: fields,
-      hasGdpr: /gdpr|date personale|consimț|consimt|politica de conf/i.test(t)
+      hasGdpr: /gdpr|date personale|consimț|consimt|politica de conf|operator de date|prelucr/i.test(t)
     });
   });
   var u = location.href;
@@ -206,6 +240,8 @@ const COLLECT_BODY = `
   if (nav) loadMs = Math.round(nav.domContentLoadedEventEnd);
   var faviconEl = document.querySelector('link[rel="icon"]') || document.querySelector('link[rel="shortcut icon"]');
   var favicon = faviconEl ? faviconEl.getAttribute("href") : null;
+  var appleEl = document.querySelector('link[rel="apple-touch-icon"]');
+  var appleTouchHref = appleEl && appleEl.getAttribute("href") ? new URL(appleEl.getAttribute("href"), document.baseURI).toString() : null;
 
   return {
     url: u,
@@ -227,7 +263,7 @@ const COLLECT_BODY = `
       text: headerText,
       navLabels: navLabels,
       hasDaciaWord: /dacia/i.test(headerText + document.title),
-      cityLike: cityMatch ? cityMatch[0] : null,
+      cityLike: cityLike,
       agent: agent ? { href: agent.href, target: agent.target, text: agent.text, hasImage: agent.hasImage } : null
     },
     footerBg: css(footerEl, "background-color"),
@@ -255,6 +291,9 @@ const COLLECT_BODY = `
     hasMailto: hasMailto,
     hasMaps: hasMaps,
     jsonLdTypes: jsonLdTypes,
+    jsonLdName: jsonLdName,
+    schemaAutoDealer: schemaAutoDealer,
+    appleTouchHref: appleTouchHref,
     headings: headings,
     imageCount: imgs.length,
     missingAlt: missingAlt,

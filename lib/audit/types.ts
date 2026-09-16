@@ -124,6 +124,9 @@ export type Snapshot = {
   hasMailto: boolean;
   hasMaps: boolean;
   jsonLdTypes: string[];
+  jsonLdName: string | null;
+  schemaAutoDealer: boolean;
+  appleTouchHref: string | null;
   headings: { level: number; text: string }[];
   imageCount: number;
   missingAlt: number;
@@ -168,6 +171,10 @@ export type AuditReport = {
     warnings: string[];
   };
   checklist: string[];
+  brief: {
+    failing: { title: string; line: string; verdict: Verdict }[];
+    passing: string[];
+  };
   pitch: {
     headline: string;
     body: string;

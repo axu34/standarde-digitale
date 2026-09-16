@@ -7,10 +7,10 @@ import type { AuditReport, ProgressEvent } from "@/lib/audit/types";
 const STEPS = [
   "Deschid pagina",
   "Caut pagina Dacia",
-  "Identitate vizuală",
-  "Captură desktop și mobil",
-  "Grila de conformitate",
-  "Generez raportul",
+  "Citesc site-ul",
+  "Fac capturile",
+  "Notez grila",
+  "Salvez raportul",
 ];
 
 async function readSse(
@@ -50,7 +50,7 @@ export function AuditForm({ initialUrl = "" }: { initialUrl?: string }) {
     setError("");
     setBusy(true);
     setStepIndex(0);
-    setMessage("Pornesc verificarea…");
+    setMessage("Pornesc…");
     try {
       const res = await fetch("/api/audit", {
         method: "POST",
@@ -68,9 +68,6 @@ export function AuditForm({ initialUrl = "" }: { initialUrl?: string }) {
       await readSse(res, (event) => {
         if (event.type === "progress") {
           setMessage(event.message);
-          const idx = STEPS.findIndex((s) =>
-            event.message.toLowerCase().includes(s.split(" ")[0].toLowerCase()),
-          );
           setStepIndex((prev) => {
             if (event.step === "goto") return 0;
             if (event.step === "discover") return 1;
@@ -78,7 +75,7 @@ export function AuditForm({ initialUrl = "" }: { initialUrl?: string }) {
             if (event.step === "desktop" || event.step === "mobile") return 3;
             if (event.step === "score" || event.step === "favicon") return 4;
             if (event.step === "save") return 5;
-            return Math.max(prev, idx === -1 ? prev : idx);
+            return prev;
           });
         }
         if (event.type === "error") {
@@ -100,44 +97,41 @@ export function AuditForm({ initialUrl = "" }: { initialUrl?: string }) {
 
   return (
     <form onSubmit={onSubmit} className="w-full">
-      <label htmlFor="site-url" className="font-block text-sm uppercase tracking-wide text-ink">
-        Adresa site-ului Dacia
+      <label htmlFor="site-url" className="font-block text-sm uppercase tracking-[0.16em] text-ink">
+        Adresa site-ului
       </label>
-      <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
         <input
           id="site-url"
           name="url"
           required
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://agent.ro/dacia-oras"
-          className="h-[46px] w-full flex-1 rounded-none border border-ink bg-white px-4 font-read text-base text-ink outline-none ring-0 placeholder:text-muted focus:border-kaki"
+          placeholder="https://agent.ro sau /dacia-oras"
+          className="h-[52px] w-full flex-1 rounded-none border border-ink bg-white px-4 font-read text-lg text-ink outline-none placeholder:text-muted focus:border-kaki"
           disabled={busy}
         />
         <button
           type="submit"
           disabled={busy}
-          className="h-[46px] min-w-[220px] rounded-none bg-kaki px-6 font-block text-base font-bold uppercase text-white hover:bg-black disabled:bg-disabled disabled:text-ink"
+          className="h-[52px] min-w-[200px] rounded-none bg-kaki px-8 font-block text-base font-bold uppercase text-white hover:bg-black disabled:bg-disabled disabled:text-ink"
         >
-          {busy ? "Se verifică…" : "Verifică site-ul"}
+          {busy ? "Se verifică…" : "Verifică"}
         </button>
       </div>
-      <p className="mt-3 font-read text-sm text-muted">
-        Puteți lipi homepage-ul agentului — găsim noi pagina Dacia, dacă există.
-      </p>
       {busy ? (
-        <div className="mt-8">
-          <div className="h-1 w-full bg-disabled">
-            <div className="h-1 bg-kaki transition-all" style={{ width: progressWidth }} />
+        <div className="mt-10">
+          <div className="h-px w-full bg-disabled">
+            <div className="h-px bg-kaki transition-all" style={{ width: progressWidth }} />
           </div>
-          <p className="mt-4 font-block text-sm uppercase tracking-wide text-ink">
+          <p className="mt-5 font-block text-sm uppercase tracking-[0.16em] text-ink">
             {STEPS[stepIndex]}
           </p>
-          <p className="mt-1 font-read text-sm text-muted">{message}</p>
+          <p className="mt-2 font-read text-sm text-muted">{message}</p>
         </div>
       ) : null}
       {error ? (
-        <p className="mt-4 font-read text-sm text-terracotta" role="alert">
+        <p className="mt-5 font-read text-sm text-terracotta" role="alert">
           {error}
         </p>
       ) : null}

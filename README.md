@@ -18,7 +18,7 @@ Chrome trebuie instalat pentru scanarea live (`playwright-core` cu `channel: "ch
 
 - Runtime Node.js, `AWS_LAMBDA_JS_RUNTIME=nodejs22.x`
 - `BLOB_READ_WRITE_TOKEN` pentru linkuri permanente de raport
-- `BREVO_API_KEY` + `LEAD_TO_EMAIL` pentru lead-uri
+- `RESEND_API_KEY` + `LEAD_TO_EMAIL` (email de pe `hello@updates.vreau-site.ro`)
 - `NEXT_PUBLIC_SITE_URL`
 
 Funcția `/api/audit` are 60s / 3008 MB, Fluid Compute oprit (Chromium).

@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     template: "%s · Standarde digitale",
   },
   description:
-    "Verificați dacă site-ul Dacia al agentului trece grila de conformitate website 2026. Raport cu dovezi, mobil, SEO și checklist pentru agenția actuală.",
+    "Verificați dacă site-ul Dacia trece grila de website 2026. Raport cu dovezi, de trimis mai departe.",
   icons: {
     icon: [{ url: "/dacia-symbol.png", sizes: "32x32", type: "image/png" }],
     apple: [{ url: "/dacia-symbol.png", sizes: "180x180" }],
@@ -41,8 +41,7 @@ export const metadata: Metadata = {
   other: { "theme-color": "#646B52" },
   openGraph: {
     title: "Standarde digitale Dacia — verificare website 2026",
-    description:
-      "Raport independent pe grila de website: URL, culori, fonturi, gamă, prețuri, servicii, mobil.",
+    description: "Raport independent pe grila de website. Ce cade, ce trece, ce trebuie schimbat.",
     type: "website",
     locale: "ro_RO",
   },

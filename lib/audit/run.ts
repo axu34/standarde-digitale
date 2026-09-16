@@ -6,6 +6,7 @@ import { collectSnapshot } from "./collect";
 import { resolveDaciaUrl } from "./discover";
 import {
   averageScore,
+  buildBrief,
   buildChecklist,
   buildPitch,
   countVerdicts,
@@ -86,11 +87,17 @@ function guessDealer(snap: Snapshot, title: string): { dealer: string; city: str
     host = "";
   }
   const fromHost = host.replace(/-/g, " ").toUpperCase();
+  const fromJson = (snap.jsonLdName || "")
+    .replace(/\s*[|–—-]\s*dacia.*$/i, "")
+    .replace(/dacia/gi, "")
+    .trim();
   const fromTitle = title.replace(/dacia/gi, "").replace(/[|–—-].*$/, "").trim();
   const dealer =
-    fromHost && fromHost.length > 2
-      ? fromHost
-      : fromTitle.slice(0, 48) || "Agent Dacia";
+    fromJson && fromJson.length > 2 && !/^gama$/i.test(fromJson)
+      ? fromJson.slice(0, 48)
+      : fromHost && fromHost.length > 2
+        ? fromHost
+        : fromTitle.slice(0, 48) || "Agent Dacia";
   return { dealer, city: city || "—" };
 }
 
@@ -146,7 +153,7 @@ export async function runAudit(inputUrl: string, emit: Emit): Promise<AuditRepor
     await page.setViewportSize({ width: 390, height: 844 });
     await new Promise((r) => setTimeout(r, 600));
     const mobileExtra = (await page.evaluate(
-      `({ overflowX: document.documentElement.scrollWidth > window.innerWidth + 12, smallTapTargets: Array.from(document.querySelectorAll("button, a[href^='tel:'], [class*='btn'], [class*='cta']")).filter(function(el) { var r = el.getBoundingClientRect(); var s = getComputedStyle(el); if (s.display === "none" || r.width === 0) return false; return r.width < 44 || r.height < 44; }).length })`,
+      `({ overflowX: document.documentElement.scrollWidth > window.innerWidth + 12, smallTapTargets: Array.from(document.querySelectorAll("a[href^='tel:'], button, input[type='submit']")).filter(function(el) { var header = document.querySelector("header"); if (header && header.contains(el) && !(el.getAttribute("href") || "").startsWith("tel:")) return false; var r = el.getBoundingClientRect(); var s = getComputedStyle(el); if (s.display === "none" || r.width === 0) return false; return r.width < 44 || r.height < 44; }).length })`,
     )) as { overflowX: boolean; smallTapTargets: number };
     snap = { ...snap, overflowX: mobileExtra.overflowX, smallTapTargets: mobileExtra.smallTapTargets };
     screenshots.push(await jpegShot(page, "mobile", "Homepage mobil", "mobile"));
@@ -158,7 +165,9 @@ export async function runAudit(inputUrl: string, emit: Emit): Promise<AuditRepor
     }
 
     emit({ type: "progress", step: "favicon", message: "Verific faviconul…" });
-    const favicon = await analyzeFavicon(snap.faviconHref, snap.url);
+    const favicon = await analyzeFavicon(snap.faviconHref, snap.url, [
+      snap.appleTouchHref,
+    ]);
 
     emit({ type: "progress", step: "score", message: "Calculez grila de conformitate…" });
     const tnp = evaluateTnp(snap, favicon);
@@ -196,6 +205,7 @@ export async function runAudit(inputUrl: string, emit: Emit): Promise<AuditRepor
         warnings,
       },
       checklist: buildChecklist(criteria),
+      brief: buildBrief(criteria),
       pitch: buildPitch(tnpScore, counts.ko),
     };
 

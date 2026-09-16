@@ -7,8 +7,30 @@ const KAKI: RGB = { r: 100, g: 107, b: 82, a: 1 };
 export async function analyzeFavicon(
   href: string | null,
   pageOrigin: string,
+  extras: (string | null | undefined)[] = [],
 ): Promise<FaviconAnalysis> {
-  if (!href) {
+  const seen = new Set<string>();
+  const candidates: string[] = [];
+  for (const raw of [href, ...extras]) {
+    if (!raw) continue;
+    try {
+      const abs = new URL(raw, pageOrigin).toString();
+      if (!seen.has(abs)) {
+        seen.add(abs);
+        candidates.push(abs);
+      }
+    } catch {
+      /* skip */
+    }
+  }
+  try {
+    const ico = new URL("/favicon.ico", pageOrigin).toString();
+    if (!seen.has(ico)) candidates.push(ico);
+  } catch {
+    /* skip */
+  }
+
+  if (!candidates.length) {
     return {
       href: null,
       kakiLike: null,
@@ -16,12 +38,22 @@ export async function analyzeFavicon(
       note: "Nu am găsit un favicon declarat.",
     };
   }
-  let abs = href;
-  try {
-    abs = new URL(href, pageOrigin).toString();
-  } catch {
-    /* keep */
+
+  let lastNote = "Faviconul nu a putut fi citit.";
+  for (const abs of candidates) {
+    const one = await readFavicon(abs);
+    if (one.kakiLike != null) return one;
+    lastNote = one.note;
   }
+  return {
+    href: candidates[0],
+    kakiLike: null,
+    averageHex: null,
+    note: lastNote,
+  };
+}
+
+async function readFavicon(abs: string): Promise<FaviconAnalysis> {
   try {
     const res = await fetch(abs, {
       signal: AbortSignal.timeout(8000),

@@ -1,5 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { BRAND } from "@/lib/brand";
+import { sendLeadNotification, sendReportToDealer } from "@/lib/email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +13,7 @@ export async function POST(req: Request) {
     reportId?: string;
     score?: string;
     url?: string;
+    city?: string;
   };
   try {
     body = await req.json();
@@ -31,47 +31,47 @@ export async function POST(req: Request) {
     );
   }
 
-  const payload = {
-    ...body,
+  const origin =
+    process.env.NEXT_PUBLIC_SITE_URL || "https://standarde-digitale.vercel.app";
+  const reportUrl = body.reportId ? `${origin.replace(/\/$/, "")}/raport/${body.reportId}` : "";
+
+  if (!process.env.RESEND_API_KEY) {
+    return Response.json(
+      { error: "Emailul nu este configurat. Sunați-ne sau scrieți pe WhatsApp." },
+      { status: 503 },
+    );
+  }
+
+  const notified = await sendLeadNotification({
     name,
+    dealer: body.dealer || "",
     phone,
     email,
-    at: new Date().toISOString(),
-  };
+    message: body.message || "",
+    reportId: body.reportId,
+    score: body.score,
+    url: body.url,
+    reportUrl,
+  });
 
-  try {
-    await mkdir("/tmp/standarde-digitale-leads", { recursive: true });
-    await writeFile(
-      `/tmp/standarde-digitale-leads/${Date.now()}.json`,
-      JSON.stringify(payload, null, 2),
+  let mailedReport = false;
+  if (email && reportUrl) {
+    mailedReport = await sendReportToDealer({
+      to: email,
+      dealer: body.dealer || name,
+      city: body.city || "",
+      score: body.score || "—",
+      reportUrl,
+      analyzedUrl: body.url || reportUrl,
+    });
+  }
+
+  if (!notified) {
+    return Response.json(
+      { error: "Nu am putut trimite. Încercați WhatsApp." },
+      { status: 502 },
     );
-  } catch {
-    /* ignore */
   }
 
-  const key = process.env.BREVO_API_KEY;
-  if (key) {
-    const html = `
-      <p><b>${name}</b> / ${body.dealer || "—"}</p>
-      <p>Tel: ${phone}<br>Email: ${email}</p>
-      <p>Site: ${body.url || "—"}<br>Scor: ${body.score || "—"}<br>Raport: ${body.reportId || "—"}</p>
-      <p>${(body.message || "").replace(/</g, "")}</p>
-    `;
-    await fetch("https://api.brevo.com/v3/smtp/email", {
-      method: "POST",
-      headers: {
-        accept: "application/json",
-        "content-type": "application/json",
-        "api-key": key,
-      },
-      body: JSON.stringify({
-        sender: { name: BRAND.agency, email: BRAND.email },
-        to: [{ email: process.env.LEAD_TO_EMAIL || BRAND.email }],
-        subject: `Lead audit Dacia — ${body.dealer || name}`,
-        htmlContent: html,
-      }),
-    }).catch(() => {});
-  }
-
-  return Response.json({ ok: true });
+  return Response.json({ ok: true, mailedReport });
 }
