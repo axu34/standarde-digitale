@@ -268,6 +268,11 @@ export function ReportView({ report }: { report: AuditReport }) {
               <p className="mt-3 font-read text-sm text-muted">
                 {report.counts.ok} ok · {report.counts.partial} parțial · {report.counts.ko} ko
               </p>
+              {report.engine.review?.applied ? (
+                <p className="mt-2 font-read text-xs text-muted">
+                  Inclusiv verificare vizuală pe capturi.
+                </p>
+              ) : null}
             </div>
           </div>
           <div className="mt-10 flex flex-wrap gap-3 print:hidden">

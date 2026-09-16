@@ -75,6 +75,33 @@ ${input.reportUrl ? `<p><a href="${escapeHtml(input.reportUrl)}">${escapeHtml(in
   });
 }
 
+export async function sendViewAlert(input: {
+  to: string;
+  dealer: string;
+  city: string;
+  reportUrl: string;
+  score: string;
+}): Promise<boolean> {
+  const inbox = process.env.LEAD_TO_EMAIL || BRAND.email;
+  const who = [input.dealer, input.city].filter((x) => x && x !== "—").join(" · ");
+  const subject = who
+    ? `${who} a deschis raportul (${input.score})`
+    : `Raport deschis (${input.score})`;
+  const text = `${input.to} a deschis raportul.
+
+${input.reportUrl}
+
+Scor: ${input.score}
+
+E momentul bun de follow-up: un telefon sau un mail scurt, cât e încă pe pagină.
+`;
+  const html = `<p><strong>${escapeHtml(input.to)}</strong> a deschis raportul${who ? ` — ${escapeHtml(who)}` : ""}.</p>
+<p>Scor: ${escapeHtml(input.score)}</p>
+<p><a href="${escapeHtml(input.reportUrl)}">${escapeHtml(input.reportUrl)}</a></p>
+<p>Follow-up acum: un telefon sau un mail scurt, cât e încă pe pagină.</p>`;
+  return send({ to: [inbox], subject, text, html });
+}
+
 export async function sendReportToDealer(input: {
   to: string;
   dealer: string;
@@ -82,6 +109,7 @@ export async function sendReportToDealer(input: {
   score: string;
   reportUrl: string;
   analyzedUrl: string;
+  pixelUrl?: string;
 }): Promise<boolean> {
   const who = [input.dealer, input.city].filter((x) => x && x !== "—").join(" · ");
   const subject = who
@@ -105,7 +133,8 @@ ${BRAND.agencyUrl}
 <p><a href="${escapeHtml(input.reportUrl)}">${escapeHtml(input.reportUrl)}</a></p>
 <p>Scor website: ${escapeHtml(input.score)}</p>
 <p>Este o analiză independentă, nu un audit oficial Dacia. Dacă vreți să vorbim despre ce rămâne de făcut: ${escapeHtml(BRAND.phoneDisplay)} sau <a href="mailto:${BRAND.email}">${BRAND.email}</a>.</p>
-<p>Alexandru Drăghici<br>${escapeHtml(BRAND.agency)}</p>`;
+<p>Alexandru Drăghici<br>${escapeHtml(BRAND.agency)}</p>
+${input.pixelUrl ? `<img src="${escapeHtml(input.pixelUrl)}" width="1" height="1" alt="" />` : ""}`;
 
   return send({
     to: [input.to],

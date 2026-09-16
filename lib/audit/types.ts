@@ -169,6 +169,7 @@ export type AuditReport = {
     browser: boolean;
     durationMs: number;
     warnings: string[];
+    review?: { model: string; applied: number; notes: string };
   };
   checklist: string[];
   brief: {

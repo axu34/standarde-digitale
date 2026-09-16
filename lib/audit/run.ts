@@ -14,6 +14,7 @@ import {
   evaluateTnp,
 } from "./evaluate";
 import { analyzeFavicon } from "./favicon";
+import { reviewWithVision } from "./review";
 import { saveReport } from "./store";
 import type { AuditReport, ProgressEvent, Screenshot, Snapshot } from "./types";
 
@@ -60,6 +61,8 @@ const CITY_SLUGS: Record<string, string> = {
   "targu-jiu": "Târgu Jiu",
   "alba-iulia": "Alba Iulia",
   orastie: "Orăștie",
+  odorheiu: "Odorheiu Secuiesc",
+  "odorheiu-secuiesc": "Odorheiu Secuiesc",
 };
 
 function cityFromUrl(url: string): string {
@@ -68,11 +71,12 @@ function cityFromUrl(url: string): string {
     const m = path.match(/dacia-([a-z0-9-]+)/);
     if (!m) return "";
     const slug = m[1];
-    return (
-      CITY_SLUGS[slug] ||
-      Object.entries(CITY_SLUGS).find(([k]) => slug.includes(k))?.[1] ||
-      slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-    );
+    const exact = CITY_SLUGS[slug];
+    if (exact) return exact;
+    const hit = Object.entries(CITY_SLUGS)
+      .sort((a, b) => b[0].length - a[0].length)
+      .find(([k]) => slug === k || slug.startsWith(`${k}-`) || slug.includes(k));
+    return hit?.[1] || slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   } catch {
     return "";
   }
@@ -149,6 +153,12 @@ export async function runAudit(inputUrl: string, emit: Emit): Promise<AuditRepor
       dataUrl: `data:image/jpeg;base64,${headerShot.toString("base64")}`,
     });
 
+    emit({ type: "progress", step: "footer", message: "Captură footer…" });
+    await page.evaluate(`window.scrollTo(0, document.body.scrollHeight)`);
+    await new Promise((r) => setTimeout(r, 450));
+    screenshots.push(await jpegShot(page, "footer", "Footer", "crop"));
+    await page.evaluate(`window.scrollTo(0, 0)`);
+
     emit({ type: "progress", step: "mobile", message: "Captură mobil 390×844…" });
     await page.setViewportSize({ width: 390, height: 844 });
     await new Promise((r) => setTimeout(r, 600));
@@ -167,11 +177,26 @@ export async function runAudit(inputUrl: string, emit: Emit): Promise<AuditRepor
     emit({ type: "progress", step: "favicon", message: "Verific faviconul…" });
     const favicon = await analyzeFavicon(snap.faviconHref, snap.url, [
       snap.appleTouchHref,
-    ]);
+    ], page);
 
     emit({ type: "progress", step: "score", message: "Calculez grila de conformitate…" });
-    const tnp = evaluateTnp(snap, favicon);
-    const quality = evaluateQuality(snap);
+    let tnp = evaluateTnp(snap, favicon);
+    let quality = evaluateQuality(snap);
+
+    emit({ type: "progress", step: "review", message: "Verificare vizuală pe capturi…" });
+    const reviewed = await reviewWithVision({
+      snap,
+      favicon,
+      tnp,
+      quality,
+      screenshots,
+    }).catch(() => null);
+    if (reviewed) {
+      tnp = reviewed.tnp;
+      quality = reviewed.quality;
+      if (reviewed.applied > 0 && reviewed.notes) warnings.push(reviewed.notes);
+    }
+
     const tnpScore = averageScore(tnp);
     const qualityScore = averageScore(quality);
     const counts = countVerdicts(tnp);
@@ -203,6 +228,9 @@ export async function runAudit(inputUrl: string, emit: Emit): Promise<AuditRepor
         browser: true,
         durationMs: Date.now() - started,
         warnings,
+        review: reviewed
+          ? { model: reviewed.model, applied: reviewed.applied, notes: reviewed.notes }
+          : undefined,
       },
       checklist: buildChecklist(criteria),
       brief: buildBrief(criteria),

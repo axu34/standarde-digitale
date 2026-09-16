@@ -1,4 +1,5 @@
 import { sendLeadNotification, sendReportToDealer } from "@/lib/email";
+import { createMailToken, pixelUrl, trackedReportUrl } from "@/lib/track";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,7 +34,19 @@ export async function POST(req: Request) {
 
   const origin =
     process.env.NEXT_PUBLIC_SITE_URL || "https://standarde-digitale.vercel.app";
-  const reportUrl = body.reportId ? `${origin.replace(/\/$/, "")}/raport/${body.reportId}` : "";
+  let reportUrl = body.reportId ? `${origin.replace(/\/$/, "")}/raport/${body.reportId}` : "";
+  let pixel: string | undefined;
+
+  if (email && body.reportId) {
+    const mail = await createMailToken({
+      reportId: body.reportId,
+      to: email,
+      dealer: body.dealer || name,
+      city: body.city || "",
+    });
+    reportUrl = trackedReportUrl(body.reportId, mail.token);
+    pixel = pixelUrl(mail.token);
+  }
 
   if (!process.env.RESEND_API_KEY) {
     return Response.json(
@@ -63,6 +76,7 @@ export async function POST(req: Request) {
       score: body.score || "—",
       reportUrl,
       analyzedUrl: body.url || reportUrl,
+      pixelUrl: pixel,
     });
   }
 

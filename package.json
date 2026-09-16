@@ -10,11 +10,12 @@
     "build": "next build && node scripts/patch-nft.mjs",
     "start": "next start",
     "lint": "eslint",
-    "test": "npx tsx --test lib/audit/evaluate.test.ts"
+    "test": "npx tsx --test lib/audit/evaluate.test.ts lib/audit/favicon.test.ts"
   },
   "dependencies": {
     "@sparticuz/chromium": "^153.0.0",
     "@vercel/blob": "^2.8.0",
+    "ai": "^7.0.102",
     "clsx": "^2.1.1",
     "nanoid": "^6.0.1",
     "next": "16.3.5",
@@ -22,7 +23,8 @@
     "pngjs": "^7.0.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "tailwind-merge": "^3.7.0"
+    "tailwind-merge": "^3.7.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

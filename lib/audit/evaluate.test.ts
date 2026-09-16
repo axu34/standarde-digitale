@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateTnp, averageScore } from "./evaluate";
+import { evaluateTnp, evaluateQuality, averageScore } from "./evaluate";
 import type { FaviconAnalysis, Snapshot } from "./types";
 
 function baseSnap(over: Partial<Snapshot> = {}): Snapshot {
@@ -166,5 +166,48 @@ describe("TNP scoring", () => {
     });
     const range = evaluateTnp(snap, favOk).find((i) => i.id === "range");
     assert.equal(range?.verdict, "PARTIAL");
+  });
+
+  it("treats a visible agent logo without a proper href as partial, not missing", () => {
+    const snap = baseSnap({
+      header: {
+        ...baseSnap().header,
+        agent: { href: "https://agent.ro/", target: "", text: "Simo", hasImage: true },
+      },
+    });
+    const item = evaluateTnp(snap, favOk).find((i) => i.id === "agent-logo");
+    assert.equal(item?.verdict, "PARTIAL");
+    assert.match(item?.summary || "", /există/i);
+  });
+
+  it("does not describe a transparent footer as dealer blue", () => {
+    const snap = baseSnap({ footerBg: "rgba(0, 0, 0, 0)", sectionBgs: [] });
+    const item = evaluateTnp(snap, favOk).find((i) => i.id === "colors");
+    assert.equal(item?.verdict, "PARTIAL");
+    assert.match(item?.summary || "", /Footer/i);
+    assert.doesNotMatch(item?.summary || "", /albastru/i);
+  });
+});
+
+describe("quality mix", () => {
+  it("does not KO a Dacia page for a hidden empty mix phrase", () => {
+    const snap = baseSnap({
+      mixedBrandPhrases: [""],
+      otherBrands: ["Renault"],
+      header: { ...baseSnap().header, navLabels: ["Vehicule noi", "Servicii", "Promoții"] },
+    });
+    const mix = evaluateQuality(snap).find((i) => i.id === "q-mix");
+    assert.equal(mix?.verdict, "OK");
+  });
+
+  it("quotes visible Renault in the Dacia header menu", () => {
+    const snap = baseSnap({
+      mixedBrandPhrases: [],
+      header: { ...baseSnap().header, navLabels: ["Vehicule noi", "RENAULT", "Servicii"] },
+    });
+    const mix = evaluateQuality(snap).find((i) => i.id === "q-mix");
+    assert.equal(mix?.verdict, "KO");
+    assert.match(mix?.summary || "", /RENAULT/);
+    assert.doesNotMatch(mix?.summary || "", /mărci: \./);
   });
 });

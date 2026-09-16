@@ -13,6 +13,11 @@ const COLLECT_BODY = `
   function textOf(el) {
     return ((el && el.textContent) || "").replace(/\\s+/g, " ").trim();
   }
+  function inTopChrome(el) {
+    if (!el || !visible(el)) return false;
+    var r = el.getBoundingClientRect();
+    return r.top < 150 && r.bottom > 0 && r.left >= 0 && r.left < window.innerWidth && r.height >= 8 && r.width >= 8;
+  }
 
   var headerEl = document.querySelector("header") || document.querySelector('[role="banner"]') || document.querySelector("nav");
   var footerEl = document.querySelector("footer") || document.querySelector('[role="contentinfo"]');
@@ -27,27 +32,47 @@ const COLLECT_BODY = `
   var headerBg = css(headerEl, "background-color") || css(document.body, "background-color");
   var headerText = textOf(headerEl).slice(0, 400);
   var navLabels = [];
-  if (headerEl) {
-    headerEl.querySelectorAll("a, button").forEach(function(el) {
-      var t = textOf(el);
-      if (t.length > 1 && t.length < 40 && navLabels.length < 30) navLabels.push(t);
-    });
-  }
-  var cityNames = ["Târgoviște","Targoviste","Drăgășani","Dragasani","București","Bucuresti","Cluj-Napoca","Cluj","Timișoara","Timisoara","Iași","Iasi","Constanța","Constanta","Craiova","Brașov","Brasov","Oradea","Arad","Pitești","Pitesti","Sibiu","Baia Mare","Călărași","Calarasi","Alexandria","Drobeta","Târgu Jiu","Targu Jiu","Alba Iulia","Orăștie","Orastie","Slatina","Râmnicu Vâlcea","Ramnicu Valcea","Ploiești","Ploiesti","Buzău","Buzau","Focșani","Focsani","Galați","Galati","Brăila","Braila","Suceava","Botoșani","Botosani","Piatra Neamț","Piatra Neamt","Bacău","Bacau","Deva","Hunedoara","Reșița","Resita","Satu Mare","Zalău","Zalau","Sfântu Gheorghe","Sfantu Gheorghe","Miercurea Ciuc","Târgu Mureș","Targu Mures"];
+  document.querySelectorAll("a, button").forEach(function(el) {
+    if (!inTopChrome(el) || navLabels.length >= 16) return;
+    var r = el.getBoundingClientRect();
+    if (r.left < 160 || r.left > window.innerWidth * 0.72) return;
+    var t = textOf(el);
+    if (t.length > 1 && t.length < 42) navLabels.push(t);
+  });
+  var cityNames = ["Târgoviște","Targoviste","Drăgășani","Dragasani","București","Bucuresti","Cluj-Napoca","Cluj","Timișoara","Timisoara","Iași","Iasi","Constanța","Constanta","Craiova","Brașov","Brasov","Oradea","Arad","Pitești","Pitesti","Sibiu","Baia Mare","Călărași","Calarasi","Alexandria","Drobeta","Târgu Jiu","Targu Jiu","Alba Iulia","Orăștie","Orastie","Slatina","Râmnicu Vâlcea","Ramnicu Valcea","Ploiești","Ploiesti","Buzău","Buzau","Focșani","Focsani","Galați","Galati","Brăila","Braila","Suceava","Botoșani","Botosani","Piatra Neamț","Piatra Neamt","Bacău","Bacau","Deva","Hunedoara","Reșița","Resita","Satu Mare","Zalău","Zalau","Sfântu Gheorghe","Sfantu Gheorghe","Miercurea Ciuc","Odorheiu Secuiesc","Odorheiu","Târgu Mureș","Targu Mures"];
   var cityHay = headerText + " " + (document.title || "");
   var cityLike = null;
   for (var ci = 0; ci < cityNames.length; ci++) {
     if (cityHay.toLowerCase().indexOf(cityNames[ci].toLowerCase()) !== -1) { cityLike = cityNames[ci]; break; }
   }
-  var headerLinks = headerEl ? [].slice.call(headerEl.querySelectorAll("a[href]")) : [];
   var rightHalf = window.innerWidth * 0.55;
-  var agentCandidates = headerLinks.map(function(a) {
+  var agentCandidates = [];
+  document.querySelectorAll("a[href]").forEach(function(a) {
+    if (!inTopChrome(a)) return;
     var r = a.getBoundingClientRect();
-    var img = a.querySelector("img");
-    return { href: a.href, target: a.target || "", text: textOf(a).slice(0, 80), hasImage: !!img, x: r.left };
-  }).filter(function(c) { return c.x > rightHalf && (c.hasImage || c.text.length > 1); });
-  agentCandidates.sort(function(a, b) { return b.x - a.x; });
+    if (r.left + r.width / 2 < rightHalf) return;
+    var img = a.querySelector("img, svg, [class*='logo' i]");
+    var t = textOf(a).slice(0, 80);
+    if (!img && /promot|vehicul|servicii|rabla|ofert|gama|contact|dacia|home|meniu/i.test(t)) return;
+    if (img || (t.length > 1 && t.length < 48)) {
+      agentCandidates.push({ href: a.href, target: a.target || "", text: t, hasImage: !!img, x: r.left });
+    }
+  });
+  agentCandidates.sort(function(a, b) {
+    if (a.hasImage !== b.hasImage) return a.hasImage ? -1 : 1;
+    return b.x - a.x;
+  });
   var agent = agentCandidates[0] || null;
+  if (!agent) {
+    document.querySelectorAll("img, svg").forEach(function(img) {
+      if (agent || !inTopChrome(img)) return;
+      var r = img.getBoundingClientRect();
+      if (r.left < rightHalf || r.width < 28 || r.width > 280) return;
+      var label = (img.getAttribute("alt") || img.getAttribute("aria-label") || "logo agent").slice(0, 80);
+      if (/^dacia$/i.test(label.trim())) return;
+      agent = { href: "", target: "", text: label, hasImage: true, x: r.left };
+    });
+  }
 
   var sectionBgs = [];
   var scanned = 0;
@@ -155,10 +180,10 @@ const COLLECT_BODY = `
 
   var hrefs = [].slice.call(document.querySelectorAll("a[href]")).map(function(a) { return a.href; });
   var legal = {
-    cookies: hrefs.some(function(h) { return /cookie/i.test(h); }) || /politica de cookie/i.test(pageText),
-    privacy: hrefs.some(function(h) { return /confidentialitate|privacy|date-personale|politica-de-conf/i.test(h); }) || /politica de confiden/i.test(pageText),
-    terms: hrefs.some(function(h) { return /termeni|terms|conditii/i.test(h); }),
-    anpc: hrefs.some(function(h) { return /anpc/i.test(h); })
+    cookies: hrefs.some(function(h) { return /cookie/i.test(h); }) || /politica de cookie|cookie policy|politica cookies/i.test(pageText),
+    privacy: hrefs.some(function(h) { return /confidentialitate|privacy|date-personale|politica-de-conf/i.test(h); }) || /politica de confiden|privacy policy|date personale/i.test(pageText),
+    terms: hrefs.some(function(h) { return /termeni|terms|conditii/i.test(h); }) || /termeni și condiții|termeni si conditii/i.test(pageText),
+    anpc: hrefs.some(function(h) { return /anpc/i.test(h); }) || /\\bANPC\\b/.test(pageText)
   };
   var privacyHref = null;
   for (var p = 0; p < hrefs.length; p++) {
@@ -250,7 +275,7 @@ const COLLECT_BODY = `
     canonical: (document.querySelector('link[rel="canonical"]') && document.querySelector('link[rel="canonical"]').getAttribute("href")) || null,
     lang: document.documentElement.lang || null,
     viewportMeta: (document.querySelector('meta[name="viewport"]') && document.querySelector('meta[name="viewport"]').getAttribute("content")) || null,
-    faviconHref: favicon ? new URL(favicon, document.baseURI).toString() : new URL("/favicon.ico", document.baseURI).toString(),
+    faviconHref: favicon ? new URL(favicon, document.baseURI).toString() : null,
     themeColor: (document.querySelector('meta[name="theme-color"]') && document.querySelector('meta[name="theme-color"]').getAttribute("content")) || null,
     https: location.protocol === "https:",
     bodyFont: bodyFont,
@@ -266,7 +291,18 @@ const COLLECT_BODY = `
       cityLike: cityLike,
       agent: agent ? { href: agent.href, target: agent.target, text: agent.text, hasImage: agent.hasImage } : null
     },
-    footerBg: css(footerEl, "background-color"),
+    footerBg: (function() {
+      var painted = css(footerEl, "background-color");
+      var pageH = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+      document.querySelectorAll("footer, [role='contentinfo'], div, section").forEach(function(el) {
+        var r = el.getBoundingClientRect();
+        var top = r.top + (window.scrollY || 0);
+        if (r.height < 70 || r.width < 280 || top < pageH * 0.62) return;
+        var bg = css(el, "background-color");
+        if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") painted = bg;
+      });
+      return painted;
+    })(),
     footerText: textOf(footerEl).slice(0, 500),
     sectionBgs: sectionBgs,
     buttons: buttons,

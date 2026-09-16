@@ -10,7 +10,7 @@ const auditTraceIncludes = [
 ];
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["playwright-core", "@sparticuz/chromium"],
+  serverExternalPackages: ["playwright-core", "@sparticuz/chromium", "ai"],
   outputFileTracingIncludes: {
     "/api/audit": auditTraceIncludes,
     "/api/audit/**": auditTraceIncludes,

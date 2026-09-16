@@ -33,6 +33,21 @@ function fontLooksGeneric(font: string): boolean {
   );
 }
 
+function otherBrandNav(labels: string[]): string[] {
+  return labels.filter((l) => /renault|alpine|nissan/i.test(l));
+}
+
+function applyOverride(
+  item: CriterionResult,
+  verdict: Verdict,
+  summary: string,
+  extraDetail: string,
+): CriterionResult {
+  const next = result({ ...item, verdict, summary });
+  next.details = [...item.details, extraDetail];
+  return next;
+}
+
 export function evaluateTnp(
   snap: Snapshot,
   favicon: FaviconAnalysis,
@@ -140,10 +155,8 @@ function layout(snap: Snapshot): CriterionResult {
     snap.hasRangeBlock || snap.models.length >= 3,
     snap.hasServicesBlock,
   ].filter(Boolean).length;
-  const brandLeak =
-    snap.mixedBrandPhrases.length > 0 ||
-    (snap.otherBrands.includes("Renault") &&
-      snap.header.navLabels.some((l) => /renault/i.test(l)));
+  const navHits = otherBrandNav(snap.header.navLabels);
+  const brandLeak = snap.mixedBrandPhrases.filter(Boolean).length > 0 || navHits.length > 0;
 
   const details = [
     headerWhite
@@ -159,9 +172,9 @@ function layout(snap: Snapshot): CriterionResult {
   ];
   if (brandLeak) {
     details.push(
-      `Pe pagina Dacia apar alte mărci / formulări mixte: ${
-        snap.mixedBrandPhrases[0] || snap.otherBrands.join(", ")
-      }.`,
+      `Pe pagina Dacia, în meniul vizibil sau în text, apar alte mărci: ${
+        navHits[0] || snap.mixedBrandPhrases.filter(Boolean)[0] || snap.otherBrands.join(", ")
+      }. Homepage-ul cu mai multe mărci este permis.`,
     );
   }
 
@@ -194,9 +207,21 @@ function layout(snap: Snapshot): CriterionResult {
   });
 }
 
+function homepageLike(href: string, pageUrl: string): boolean {
+  try {
+    const a = new URL(href, pageUrl);
+    const page = new URL(pageUrl);
+    if (a.origin !== page.origin) return false;
+    const path = a.pathname.replace(/\/$/, "") || "/";
+    return path === "/" || path === "";
+  } catch {
+    return false;
+  }
+}
+
 function agentLogo(snap: Snapshot): CriterionResult {
   const agent = snap.header.agent;
-  if (!agent) {
+  if (!agent || (!agent.hasImage && !agent.href && !agent.text)) {
     return result({
       id: "agent-logo",
       number: 5,
@@ -204,7 +229,7 @@ function agentLogo(snap: Snapshot): CriterionResult {
       officialName: "Group Dealer Logo On Homepage",
       group: "tnp",
       verdict: "KO",
-      summary: "Nu am identificat logo-ul / linkul agentului în dreapta headerului.",
+      summary: "Nu am identificat logo-ul agentului în dreapta headerului.",
       details: [
         "Ghidul cere logo-ul agentului în dreapta, cu click spre pagina Despre noi într-un tab nou.",
       ],
@@ -213,8 +238,31 @@ function agentLogo(snap: Snapshot): CriterionResult {
         "Puneți logo-ul agentului în dreapta headerului, link către Despre noi, target=_blank.",
     });
   }
+
+  const href = (agent.href || "").trim();
   const blank = /blank/i.test(agent.target);
-  const verdict: Verdict = blank ? "OK" : "PARTIAL";
+  const about = /despre|about|prezentare|companie|istoric|who-we/i.test(href);
+  const missingHref = !href || href === snap.url || href.endsWith("#") || /^javascript:/i.test(href);
+  const toHome = Boolean(href) && homepageLike(href, snap.url);
+  const hrefOk = Boolean(href) && !missingHref && !toHome;
+
+  let verdict: Verdict = "OK";
+  let summary = "Logo-ul agentului din header deschide un tab nou.";
+  if (!hrefOk || !blank) {
+    verdict = "PARTIAL";
+    if (missingHref) {
+      summary =
+        "Logo-ul agentului există în dreapta headerului, dar nu este un link (sau href-ul lipsește).";
+    } else if (toHome) {
+      summary =
+        "Logo-ul agentului există, dar link-ul duce spre homepage, nu spre Despre noi într-un tab nou.";
+    } else if (!blank) {
+      summary = "Logo-ul agentului există, dar nu deschide un tab nou (target=_blank).";
+    } else if (!about) {
+      summary = "Logo-ul agentului există, dar link-ul nu pare pagina Despre noi.";
+    }
+  }
+
   return result({
     id: "agent-logo",
     number: 5,
@@ -222,16 +270,15 @@ function agentLogo(snap: Snapshot): CriterionResult {
     officialName: "Group Dealer Logo On Homepage",
     group: "tnp",
     verdict,
-    summary: blank
-      ? "Logo-ul agentului din header deschide un tab nou."
-      : "Logo-ul agentului există, dar nu deschide un tab nou (target=_blank).",
+    summary,
     details: [
-      `Link detectat: ${agent.href}`,
+      href ? `Link detectat: ${href}` : "Imagine/logo fără <a href>.",
       agent.hasImage ? "Are imagine / logo." : "Pare text, nu neapărat logo.",
       `target="${agent.target || "_self"}"`,
+      about ? "Link-ul seamănă cu Despre noi." : "Ghidul cere click → Despre noi, tab nou.",
     ],
     evidence: [
-      { kind: "url", label: "Link agent", value: agent.href },
+      ...(href ? [{ kind: "url" as const, label: "Link agent", value: href }] : []),
       { kind: "screenshot", label: "Header", screenshotId: "header" },
     ],
     recommendation:
@@ -249,8 +296,17 @@ function colors(snap: Snapshot): CriterionResult {
       return { hex: toHex(c), h: s.h };
     })
     .filter((x): x is { hex: string; h: number } => Boolean(x));
+  const blueSections = snap.sectionBgs
+    .map((s) => {
+      const c = parseCssColor(s.bg);
+      if (!c || c.a < 0.85 || s.h < 180 || !looksBlue(c)) return null;
+      return toHex(c);
+    })
+    .filter((x): x is string => Boolean(x));
 
   const uniqueForbidden = [...new Set(forbidden.map((f) => f.hex))];
+  const uniqueBlue = [...new Set(blueSections)];
+  const footerTransparent = !footer || footer.a < 0.2;
   const footerKaki = footer ? isKaki(footer, 48) : false;
   const bodyWhite = !body || body.a < 0.2 || isNearWhite(body);
 
@@ -260,20 +316,43 @@ function colors(snap: Snapshot): CriterionResult {
       ? "Fundalul paginii este alb."
       : `Fundal pagină: ${body ? toHex(body) : snap.bodyBg}.`,
   );
-  details.push(
-    footerKaki
-      ? `Footer kaki (${snap.footerBg}).`
-      : `Footer-ul nu este kaki-ul oficial #646B52 (am măsurat ${snap.footerBg || "gol"}).`,
-  );
+  if (footerKaki) {
+    details.push(`Footer kaki (${snap.footerBg}).`);
+  } else if (footerTransparent) {
+    details.push(
+      "Footer-ul nu are fundal kaki măsurabil (transparent — frecvent pe Wix). Ghidul cere footer #646B52.",
+    );
+  } else {
+    details.push(
+      `Footer-ul nu este kaki-ul oficial #646B52 (am măsurat ${footer ? toHex(footer) : snap.footerBg || "gol"}).`,
+    );
+  }
   if (uniqueForbidden.length) {
     details.push(
       `Culori de secțiune interzise (inclusiv griul #F3F4F6 care a picat auditul H1): ${uniqueForbidden.join(", ")}.`,
     );
   }
+  if (uniqueBlue.length) {
+    details.push(`Albastru de dealer pe secțiuni mari: ${uniqueBlue.join(", ")}.`);
+  }
 
   let verdict: Verdict = "OK";
-  if (uniqueForbidden.length >= 1) verdict = "KO";
+  if (uniqueForbidden.length >= 1 || uniqueBlue.length >= 1) verdict = "KO";
   else if (!footerKaki || !bodyWhite) verdict = "PARTIAL";
+
+  let summary = "Paleta vizibilă respectă kaki, alb, orange, terracotta.";
+  if (verdict === "KO") {
+    summary = uniqueForbidden.length
+      ? `Secțiuni cu gri sau culori în afara paletei: ${uniqueForbidden[0]}.`
+      : `Albastru de dealer pe secțiuni: ${uniqueBlue[0]}.`;
+  } else if (verdict === "PARTIAL") {
+    if (!bodyWhite) summary = `Fundalul paginii nu este alb curat (${body ? toHex(body) : snap.bodyBg}).`;
+    else if (footerTransparent) {
+      summary = "Footer-ul nu este kaki #646B52 (fundal transparent).";
+    } else {
+      summary = `Footer-ul nu este kaki #646B52 (am măsurat ${footer ? toHex(footer) : "gol"}).`;
+    }
+  }
 
   return result({
     id: "colors",
@@ -282,10 +361,7 @@ function colors(snap: Snapshot): CriterionResult {
     officialName: "Branding – Colors",
     group: "tnp",
     verdict,
-    summary:
-      verdict === "OK"
-        ? "Paleta vizibilă respectă kaki, alb, orange, terracotta."
-        : "Apare gri / albastru / altă culoare de dealer, sau footer-ul nu e kaki.",
+    summary,
     details,
     evidence: [
       ...uniqueForbidden.slice(0, 4).map((hex) => ({
@@ -297,10 +373,11 @@ function colors(snap: Snapshot): CriterionResult {
       {
         kind: "color",
         label: "Footer",
-        hex: footer ? toHex(footer) : undefined,
+        hex: footer && footer.a >= 0.2 ? toHex(footer) : undefined,
         value: snap.footerBg,
       },
       { kind: "screenshot", label: "Homepage", screenshotId: "desktop" },
+      { kind: "screenshot", label: "Footer", screenshotId: "footer" },
     ],
     recommendation:
       "Doar paleta Dacia. Fundal de pagină alb curat. Fără #F3F4F6 / gray-50 pe secțiuni. Footer kaki #646B52.",
@@ -837,9 +914,10 @@ function gdprForms(snap: Snapshot): CriterionResult {
 }
 
 function brandMixQuality(snap: Snapshot): CriterionResult {
-  const inNav = snap.header.navLabels.some((l) => /renault|alpine|nissan/i.test(l));
-  const phrases = snap.mixedBrandPhrases;
-  const verdict: Verdict = phrases.length > 0 || inNav ? "KO" : "OK";
+  const navHits = otherBrandNav(snap.header.navLabels);
+  const phrases = snap.mixedBrandPhrases.map((p) => p.trim()).filter(Boolean);
+  const quote = navHits[0] || phrases[0] || "";
+  const verdict: Verdict = navHits.length > 0 || phrases.length > 0 ? "KO" : "OK";
   return result({
     id: "q-mix",
     number: 30,
@@ -849,19 +927,60 @@ function brandMixQuality(snap: Snapshot): CriterionResult {
     verdict,
     summary:
       verdict === "OK"
-        ? "Pe pagina analizată nu apar CTA-uri clare către alte mărci."
-        : `Amestec de mărci: ${snap.mixedBrandPhrases[0] || snap.otherBrands.join(", ")}.`,
+        ? "Pe pagina Dacia nu apar CTA-uri clare către alte mărci. Homepage-ul cu mai multe mărci este permis."
+        : `Pe pagina Dacia, meniul sau textul trimite spre altă marcă: «${quote}».`,
     details: [
-      "Homepage-ul multi-brand al agentului este permis. Pagina Dacia nu trebuie să trimită spre Renault / Alpine / altele.",
+      "Homepage-ul agentului cu mai multe mărci este permis. Pe pagina Dacia, meniul vizibil nu trebuie să conțină Renault / Alpine / altele.",
+      navHits.length
+        ? `Navigare vizibilă cu altă marcă: ${navHits.join(" · ")}.`
+        : "Navigarea din header-ul vizibil nu conține Renault / Alpine.",
+      phrases.length ? `Formulare mixte: ${phrases.slice(0, 3).join(" · ")}.` : "",
+    ].filter(Boolean),
+    evidence: [
+      ...navHits.slice(0, 3).map((q) => ({
+        kind: "quote" as const,
+        label: "Meniu",
+        quote: q,
+      })),
+      ...phrases.slice(0, 3).map((q) => ({
+        kind: "quote" as const,
+        label: "Formulare mixtă",
+        quote: q,
+      })),
     ],
-    evidence: snap.mixedBrandPhrases.slice(0, 3).map((q) => ({
-      kind: "quote" as const,
-      label: "Formulare mixtă",
-      quote: q,
-    })),
     recommendation:
-      "Scoateți «Dacia și Renault» din footer, meniu și serviciile de pe pagina Dacia.",
+      "Scoateți Renault / Alpine din meniul, footer-ul și serviciile de pe pagina Dacia. Homepage-ul multi-brand poate rămâne.",
   });
+}
+
+export function applyAiOverrides(
+  items: CriterionResult[],
+  overrides: {
+    id: string;
+    verdict: Verdict;
+    summary: string;
+    reason: string;
+    confidence: number;
+  }[],
+  locked: Set<string>,
+): { items: CriterionResult[]; applied: number } {
+  let applied = 0;
+  const next = items.map((item) => {
+    const hit = overrides.find((o) => o.id === item.id && o.confidence >= 0.72);
+    if (!hit) return item;
+    if (locked.has(item.id) && hit.verdict === "OK" && item.verdict !== "OK") {
+      return item;
+    }
+    if (hit.verdict === item.verdict && hit.summary === item.summary) return item;
+    applied += 1;
+    return applyOverride(
+      item,
+      hit.verdict,
+      hit.summary,
+      `Verificare vizuală: ${hit.reason}`,
+    );
+  });
+  return { items: next, applied };
 }
 
 export function averageScore(items: CriterionResult[]): number {
